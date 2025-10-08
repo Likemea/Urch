@@ -35,17 +35,17 @@ LUCK_UPGRADES = {
             28: {"Mythic ✨ (1 in 1,024)": 3, "Ruby 🔶 (1 in 512)": 2, "Emerald 🟢 (1 in 512)": 2, "Sapphire 🔹 (1 in 512)": 2},
             29: {"Mythic ✨ (1 in 1,024)": 4},
             30: {"Exceptional 😱 (1 in 1,500)": 5, "Mythic ✨ (1 in 1,024)": 3, "Lucky 🍀 (1 in 1,000)": 7}, # super buffed (1/1,000 range)
-            31: {"Aureum 💎 (1 in 4,096)": 2}, # stuff beyond may be unbalanced because i didnt update them yet
-            32: {"Unique 💖 (1 in 5,000)": 2},
-            33: {":53: [III] (1 in 5,353)": 2},
-            34: {"Very Nice 😏 (1 in 6,900)": 2},
-            35: {"Ultimate  (1 in 8,192)": 2},
-            36: {"Exode 🌠 (1 in 10,000)": 2},
-            37: {"Unusual 🔎 (1 in 16,384)": 2},
-            38: {"Godly 🤩 (1 in 21,500)": 2},
-            39: {"Archidon 🌌 (1 in 22,500)": 2},
-            40: {"Binary 💻 (1 in 32,768)": 2}, # super buffed (1/5,000 range)
-            41: {":53: [IV] (1 in 53,530)": 2},
+            31: {"Exceptional 😱 (1 in 1,500)": 2},
+            32: {"Crystallize 🔮 (1 in 1,248)": 4, "Prestigeous 💠 (1 in 124)": 25, "Uncommon 🟢 (1 in 4)": 50},
+            33: {"2048 🔢 (1 in 2,048)": 2, "Common ⚪ (1 in 2)": 100},
+            34: {"2048 🔢 (1 in 2,048)": 2, "poop 💩 (1 in 123)": 20},
+            35: {"Insane 😮 (1 in 3,800)": 1, "Jackpot 🤑 (1 in 777)": 7, "Freezing ❄️ (1 in 650)": 10},
+            36: {"Triangle 🔺 (1 in 3,000)": 3, "Square 🟥 (1 in 4,000)": 4, "Exceptional 😱 (1 in 1,500)": 5},
+            37: {"Archaic ❇️ (1 in 5,125)": 2, "Unique 💖 (1 in 5,000)": 3, "Lucky 🍀 (1 in 1,000)": 6, "Money 💵 (1 in 888)": 7},
+            38: {"Aureum 💎 (1 in 4,096)": 3, "Crystallize 🔮 (1 in 1,248)": 5},
+            39: {":53: [III] (1 in 5,353)": 3, ":53: (1 in 53)": 53},
+            40: {"Ultimate  (1 in 8,192)": 1, "Very Nice 😏 (1 in 6,900)": 3, "Archaic ❇️ (1 in 5,125)": 4, "Triangle 🔺 (1 in 3,000)": 1, "Square 🟥 (1 in 4,000)": 1, "KROMER 💰 (1 in 1,997)": 4, "ERROR ⚠ (1 in 404)": 10,  "Good 👍 (1 in 8)": 100}, # super buffed (1/5,000 range) 
+            41: {"128-Bit ✯🖥⚠✯ (1 in 340.28Ud)": 1}, # stuff beyond may be unbalanced because i didnt update them yet
             42: {"Divine 🌃 (1 in 65,536)": 2},
             43: {"Ascendant 👼 (1 in 72,000)": 2},
             44: {"Miner ⛏ (1 in 90,100)": 2},
