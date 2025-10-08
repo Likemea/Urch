@@ -14,8 +14,8 @@ LUCK_UPGRADES = {
             7:  {"Rare 🔵 (1 in 16)": 1, "Common ⚪ (1 in 2)": 10},
             8:  {"Rare 🔵 (1 in 16)": 3, "Common ⚪ (1 in 2)": 5},
             9:  {"Cool 😎 (1 in 25)": 2},
-            10: {"Cool 😎 (1 in 25)": 1, "Rare 🔵 (1 in 16)": 2, "Good 👍 (1 in 8)": 4, "Uncommon 🟢 (1 in 4)": 8}, # super buffed (atleast 1 in 25)
-            11: {"Epic 🟣 (1 in 32)": 2},
+            10: {"Cool 😎 (1 in 25)": 2, "Rare 🔵 (1 in 16)": 4, "Good 👍 (1 in 8)": 8, "Uncommon 🟢 (1 in 4)": 16}, # super buffed (atleast 1 in 25)
+            11: {"Epic 🟣 (1 in 32)": 4},
             12: {"Hot ☀ (1 in 40)": 2, "Cool 😎 (1 in 25)": 4},
             13: {":53: (1 in 53)": 5},
             14: {"Great 🗣 (1 in 64)": 4, "Good 👍 (1 in 8)": 16},
