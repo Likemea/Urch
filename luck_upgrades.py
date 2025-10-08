@@ -39,7 +39,7 @@ LUCK_UPGRADES = {
             32: {"Crystallize 🔮 (1 in 1,248)": 4, "Prestigeous 💠 (1 in 124)": 25, "Uncommon 🟢 (1 in 4)": 50},
             33: {"2048 🔢 (1 in 2,048)": 2, "Common ⚪ (1 in 2)": 100},
             34: {"2048 🔢 (1 in 2,048)": 2, "poop 💩 (1 in 123)": 20},
-            35: {"Insane 😮 (1 in 3,800)": 1, "Jackpot 🤑 (1 in 777)": 7, "Freezing ❄️ (1 in 650)": 10},
+            35: {"Insane 😮 (1 in 3,800)": 2, "Jackpot 🤑 (1 in 777)": 7, "Freezing ❄️ (1 in 650)": 10},
             36: {"Triangle 🔺 (1 in 3,000)": 3, "Square 🟥 (1 in 4,000)": 4, "Exceptional 😱 (1 in 1,500)": 5},
             37: {"Archaic ❇️ (1 in 5,125)": 2, "Unique 💖 (1 in 5,000)": 3, "Lucky 🍀 (1 in 1,000)": 6, "Money 💵 (1 in 888)": 7},
             38: {"Aureum 💎 (1 in 4,096)": 3, "Crystallize 🔮 (1 in 1,248)": 5},
