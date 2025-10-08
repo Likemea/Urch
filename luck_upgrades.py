@@ -3,7 +3,7 @@ import math
 LUCK_UPGRADES = {
     "additive_luck": {
         "name": "🍀 Additive Luck",
-        "description": "+🍀 (0.3\*(tier\*(2\**math.floor(tier/10))))",
+        "description": "Gain +0.3 🍀 per tier \n Every 10th tier double the luck boost",
         "requirements": {
             1:  {"Common ⚪ (1 in 2)": 1},
             2:  {"Common ⚪ (1 in 2)": 2},
