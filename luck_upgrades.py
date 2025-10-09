@@ -39,23 +39,23 @@ LUCK_UPGRADES = {
             32: {"Crystallize 🔮 (1 in 1,248)": 4, "Prestigeous 💠 (1 in 124)": 25, "Uncommon 🟢 (1 in 4)": 50},
             33: {"2048 🔢 (1 in 2,048)": 2, "Common ⚪ (1 in 2)": 100},
             34: {"2048 🔢 (1 in 2,048)": 2, "poop 💩 (1 in 123)": 20},
-            35: {"Insane 😮 (1 in 3,800)": 2, "Jackpot 🤑 (1 in 777)": 7, "Freezing ❄️ (1 in 650)": 10},
-            36: {"Triangle 🔺 (1 in 3,000)": 3, "Square 🟥 (1 in 4,000)": 4, "Exceptional 😱 (1 in 1,500)": 5},
-            37: {"Archaic ❇️ (1 in 5,125)": 2, "Unique 💖 (1 in 5,000)": 3, "Lucky 🍀 (1 in 1,000)": 6, "Money 💵 (1 in 888)": 7},
-            38: {"Aureum 💎 (1 in 4,096)": 3, "Crystallize 🔮 (1 in 1,248)": 5},
-            39: {":53: [III] (1 in 5,353)": 3, ":53: (1 in 53)": 53},
-            40: {"Ultimate  (1 in 8,192)": 1, "Very Nice 😏 (1 in 6,900)": 3, "Archaic ❇️ (1 in 5,125)": 4, "Triangle 🔺 (1 in 3,000)": 1, "Square 🟥 (1 in 4,000)": 1, "KROMER 💰 (1 in 1,997)": 4, "ERROR ⚠ (1 in 404)": 10,  "Good 👍 (1 in 8)": 100}, # super buffed (1/5,000 range) 
-            41: {"128-Bit ✯🖥⚠✯ (1 in 340.28Ud)": 1}, # stuff beyond may be unbalanced because i didnt update them yet
-            42: {"Divine 🌃 (1 in 65,536)": 2},
-            43: {"Ascendant 👼 (1 in 72,000)": 2},
-            44: {"Miner ⛏ (1 in 90,100)": 2},
-            45: {"Amazing 📜 (1 in 100,000)": 2},
-            46: {"Easy 😃 (1 in 131,072)": 2},
-            47: {"negus 🥶 (1 in 140,000)": 2},
-            48: {"Redacted ⬛ (1 in 200,000)": 2},
-            49: {"Skilled 🤸‍♂️ (1 in 262,144)": 2},
-            50: {"Supreme 🪐 (1 in 350,000)": 2}, # super buffed
-            51: {"Unstoppable ❌ (1 in 500,000)": 2},
+            35: {"Insane 😮 (1 in 3,800)": 2, "Jackpot 🤑 (1 in 777)": 7, "Freezing ❄️ (1 in 650)": 10},                                   # 19,539 difficulty
+            36: {"Triangle 🔺 (1 in 3,000)": 3, "Square 🟥 (1 in 4,000)": 4, "Exceptional 😱 (1 in 1,500)": 5},                            # 32,500 difficulty
+            37: {"Archaic ❇️ (1 in 5,125)": 2, "Unique 💖 (1 in 5,000)": 3, "Lucky 🍀 (1 in 1,000)": 6, "Money 💵 (1 in 888)": 7},        # 37,466 difficulty
+            38: {"Aureum 💎 (1 in 4,096)": 3, "Crystallize 🔮 (1 in 1,248)": 5},                                                           # 18,528 difficulty
+            39: {":53: [III] (1 in 5,353)": 3, ":53: (1 in 53)": 53},                                                                       # 18,868 difficulty
+            40: {"Ultimate  (1 in 8,192)": 1, "Very Nice 😏 (1 in 6,900)": 3, "Archaic ❇️ (1 in 5,125)": 4, "Triangle 🔺 (1 in 3,000)": 1, "Square 🟥 (1 in 4,000)": 1, "KROMER 💰 (1 in 1,997)": 4, "ERROR ⚠ (1 in 404)": 10,  "Good 👍 (1 in 8)": 100}, # 69,220 difficulty  
+            41: ("Exotic 🫠 (1 in 9,999)": 2, "Mythic ✨ (1 in 1,024)": 7),                                                                 # 27,166 diff.                                                                   
+            42: {"Exode 🌠 (1 in 10,000)": 2, "Extreme 🧗🏻‍♂️ (1 in 7,009)": 3, "2048 🔢 (1 in 2,048)": 4},                                    # 49,219 diff.        
+            43: {"Unusual 🔎 (1 in 16,384)": 1, "Grass 🌱 (1 in 12,345)": 3},                                                              # 53,359 diff.
+            44: {"Superman 🦸‍♂️ (1 in 12,228)": 3, "Exotic 🫠 (1 in 9,999)": 2, "Very Nice 😏 (1 in 6,900)": 3, "Man 👨 (1 in 100)": 50},    # 82,382 diff.
+            45: {"Continental 🗺️ (1 in 27,000)": 2, "Unusual 🔎 (1 in 16,384)": 4},                                                        # 119,536 diff.
+            46: {"Archidon 🌌 (1 in 22,500)": 1, "Godly 🤩 (1 in 21,500)": 1, "Pi 🥧 (1 in 314)": 31, "poop 💩 (1 in 123)": 1},           # 53,857 diff. significantly easier :3
+            47: {"Binary 💻 (1 in 32,768)": 2, "Exode 🌠 (1 in 10,000)": 4, "Square 🟥 (1 in 4,000)": 8, "Aureum 💎 (1 in 4,096)": 10},        # 145,728 diff.
+            48: {"Enigmatic 🧩 (1 in 40,404)": 2, "Quantum ⚛️ (1 in 33,333)": 2, "Binary 💻 (1 in 32,768)": 1, "Godly 🤩 (1 in 21,500)": 3},   # 244,742 diff.
+            49: {":53: [IV] (1 in 53,530)": 3, ":53: [III] (1 in 5,353)": 5, ":53: [II] (1 in 530)": 25, ":53: (1 in 53)": 53},                  # 205,905 diff.
+            50: {"Divine 🌃 (1 in 65,536)": 3, ":53: [IV] (1 in 53,530)": 1, "Otherworldly 🫧 (1 in 44,444)": 4, "Enigmatic 🧩 (1 in 40,404)": 1, "Quantum ⚛️ (1 in 33,333)": 1, "Binary 💻 (1 in 32,768)": 1, "Continental 🗺️ (1 in 27,000)": 1, "Archidon 🌌 (1 in 22,500)": 2, "Godly 🤩 (1 in 21,500)": 2}, # 518,347 diff.
+            51: {"128-Bit ✯🖥⚠✯ (1 in 340.28Ud)": 1},  
             52: {"Slick 🤪 (1 in 524,288)": 2},
             53: {":53: [V] (1 in 530,530)": 2},
             54: {"Failure ⚠ (1 in 666,666)": 2},
