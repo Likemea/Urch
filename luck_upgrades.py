@@ -77,7 +77,10 @@ LUCK_UPGRADES = {
             2: {"Nice 😂 (1 in 69)": 10, "poop 💩 (1 in 123)": 10, "Legendary 🏅 (1 in 256)": 5},
             3: {"Gilded 💛 (1 in 128)": 8, "Emerald 🟢 (1 in 512)": 4},
             4: {"Epic 🟣 (1 in 32)": 27, "Anger 😡 (1 in 600)": 14, "Lucky 🍀 (1 in 1,000)": 6, "Exceptional 😱 (1 in 1,500)": 3},
-            5: {"Aureum 💎 (1 in 4,096)": 8, ":53: [III] (1 in 5,353)": 5, "Ultimate  (1 in 8,192)": 3, "Godly 🤩 (1 in 21,500)": 1}
+            5: {"Aureum 💎 (1 in 4,096)": 8, ":53: [III] (1 in 5,353)": 5, "Ultimate  (1 in 8,192)": 3, "Godly 🤩 (1 in 21,500)": 1},
+            6: {"Unfathomable 🚰 (1 in 75,000)": 2, "Divine 🌃 (1 in 65,536)": 3, "Otherworldly 🫧 (1 in 44,444)": 4, "Enigmatic 🧩 (1 in 40,404)": 4},
+            7: {"Planetary 🌍 (1 in 1,000,000)": 1, "Redacted ⬛ (1 in 200,000)": 4, "Steel 🔩 (1 in 123,456)": 4, "Miner ⛏ (1 in 90,100)": 5, ":53: [IV] (1 in 53,530)": 3},
+            8: {"Radiant 🌟 (1 in 16,777,216)": 1, "Luminary ☀️ (1 in 4,444,444)": 4, "Spectral 🧊🌈 (1 in 2,777,777)": 5, "Infrared ♨️ (1 in 2,475,475)": 5, "Interstellar 🌞 (1 in 1,300,000)": 16}
         },
         "effect": lambda tier, user: {
             "luck_bonus": ((tier or 0) ** 0.2) * 0.1
