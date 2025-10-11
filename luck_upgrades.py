@@ -55,16 +55,17 @@ LUCK_UPGRADES = {
             48: {"Enigmatic 🧩 (1 in 40,404)": 2, "Quantum ⚛️ (1 in 33,333)": 2, "Binary 💻 (1 in 32,768)": 1, "Godly 🤩 (1 in 21,500)": 3},   # 244,742 diff.
             49: {":53: [IV] (1 in 53,530)": 3, ":53: [III] (1 in 5,353)": 5, ":53: [II] (1 in 530)": 25, ":53: (1 in 53)": 53},                  # 205,905 diff.
             50: {"Divine 🌃 (1 in 65,536)": 3, ":53: [IV] (1 in 53,530)": 1, "Otherworldly 🫧 (1 in 44,444)": 4, "Enigmatic 🧩 (1 in 40,404)": 1, "Quantum ⚛️ (1 in 33,333)": 1, "Binary 💻 (1 in 32,768)": 1, "Continental 🗺️ (1 in 27,000)": 1, "Archidon 🌌 (1 in 22,500)": 2, "Godly 🤩 (1 in 21,500)": 2}, # 518,347 diff.
-            51: {"128-Bit ✯🖥⚠✯ (1 in 340.28Ud)": 1},  
-            52: {"Slick 🤪 (1 in 524,288)": 2},
-            53: {":53: [V] (1 in 530,530)": 2},
-            54: {"Failure ⚠ (1 in 666,666)": 2},
-            55: {"Lottery 🎰 (1 in 777,777)": 2},
-            56: {"Space ☄ (1 in 999,999)": 2},
-            57: {"Planetary 🌍 (1 in 1,000,000)": 2},
-            58: {"Enlightened 🤔 (1 in 1,048,576)": 2},
-            59: {"Interstellar 🌞 (1 in 1,300,000)": 2},
-            60: {"Rainbow 🌈 (1 in 1,450,000)": 2} # super buffed
+            51: {"Ascendant 👼 (1 in 72,000)": 2, "Exode 🌠 (1 in 10,000)": 5},                                   # 194,000 diff.
+            52: {"Unfathomable 🚰 (1 in 75,000)": 1, "Divine 🌃 (1 in 65,536)": 1, "Extreme 🧗🏻‍♂️ (1 in 7,009)": 6}, # 182,590 diff.
+            53: {"Miner ⛏ (1 in 90,100)": 5, ":53: [IV] (1 in 53,530)": 3, ":53: [III] (1 in 5,353)": 53, ":53: (1 in 53)": 69}, # ~611,090 diff.
+            54: {"Steel 🔩 (1 in 123,456)": 3, "Grass 🌱 (1 in 12,345)": 7},                                       # 456,783 diff.
+            55: {"Easy 😃 (1 in 131,072)": 4, "Archidon 🌌 (1 in 22,500)": 10, "Good 👍 (1 in 8)": 1},            # 749,296 diff.
+            56: {"negus 🥶 (1 in 140,000)": 4, "Steel 🔩 (1 in 123,456)": 2, "Freezing ❄️ (1 in 650)": 100},      # 871,912 diff.
+            57: {"Supreme 🪐 (1 in 350,000)": 5, "Skilled 🤸‍♂️ (1 in 262,144)": 3},                                 # 2,536,432 diff.
+            58: {"Common ⚪ (1 in 2)": 1},                                                                        # 2
+            59: {"Unstoppable ❌ (1 in 500,000)": 2, "Charge ⚡ (1 in 444,444)": 4},                              # 2,777,776 diff.
+            60: {":53: [V] (1 in 530,530)": 5, "Slick 🤪 (1 in 524,288)": 3, "Redacted ⬛ (1 in 200,000)": 7},    # 5,625,514 diff.
+            61: {"ifinity (1 in 1)": 9999999999999, "Common ⚪ (1 in 2)": 61272002009999488}                      # infinite :sli:
         },
         "effect": lambda tier, user: {"luck_bonus": (0.3 * (tier * (2**math.floor(tier/10))))},
     },
