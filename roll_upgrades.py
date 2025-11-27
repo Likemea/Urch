@@ -12,4 +12,13 @@ ROLL_UPGRADES = {
         },
         "effect": lambda tier, user: {"multi_roll": tier},
     }
+    "luck_roll": {
+        "name": "🍀🎰 Lucky Rolls",
+        "description": "+floor(log_10(Luck)*1.25) rolls",
+        "max_tier": 1,
+        "requirements": {
+            1: {"Lucky 🍀 (1 in 1,000)": 100, "2048 🔢 (1 in 2,048)": 53, "Enigmatic 🧩 (1 in 40,404)": 10, "Unfathomable 🚰 (1 in 75,000)": 5, "Lottery 🎰 (1 in 777,777)": 1, "Rainbow 🌈 (1 in 1,450,000)": 1}
+        },
+        "effect": lambda tier, user: {"multi_roll: 0}, # CHANGE THIS LATER
+    }
 }
