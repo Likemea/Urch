@@ -1,0 +1,146 @@
+# Urch/upgrades/luck_upgrades.py
+import math
+LUCK_UPGRADES = {
+    "additive_luck": {
+        "name": "🍀 Additive Luck",
+        "description": "Gain +0.3 🍀 per tier \n Every 10th tier doubles the luck boost",
+        "requirements": {
+            1:  {"common": 1},
+            2:  {"common": 2},
+            3:  {"uncommon": 1},
+            4:  {"uncommon": 2},
+            5:  {"good": 1},
+            6:  {"good": 2},
+            7:  {"rare": 1, "common": 10},
+            8:  {"rare": 3, "common": 5},
+            9:  {"cool": 2},
+            10: {"cool": 2, "rare": 4, "good": 8, "uncommon": 16}, # super buffed (atleast 1 in 25)
+            11: {"epic": 4},
+            12: {"hot": 2, "cool": 4},
+            13: {"53": 5},
+            14: {"great": 4, "good": 16},
+            15: {"man": 2, "great": 4, "good": 8},
+            16: {"poop": 5, "nice": 7},
+            17: {"gilded": 6},
+            18: {"legendary": 2, "epic": 4, "rare": 8, "uncommon": 16, "common": 32},
+            19: {"pi": 3, "hot": 14},
+            20: {"ruby": 2, "error": 4, "nice": 6, "common": 25}, # super buffed (atleast 1 in 500)
+            21: {"ruby": 3, "legendary": 6},
+            22: {"53_2": 5, "53": 3},
+            23: {"anger": 3, "hot": 6, "cool": 20},
+            24: {"freezing": 4, "anger": 4},
+            25: {"jackpot": 3, "hell": 3, "hot": 10},
+            26: {"money": 3, "jackpot": 2, "gilded": 18},
+            27: {"ruby": 4, "emerald": 4, "sapphire": 4},
+            28: {"mythic": 3, "ruby": 2, "emerald": 2, "sapphire": 2},
+            29: {"mythic": 4},
+            30: {"exceptional": 5, "mythic": 3, "lucky": 7}, # super buffed (1/1,000 range)
+            31: {"exceptional": 2},
+            32: {"crystallize": 4, "prestigeous": 25, "uncommon": 50},
+            33: {"2048": 2, "common": 100},
+            34: {"2048": 2, "poop": 20},
+            35: {"insane": 2, "jackpot": 7, "freezing": 10},   
+            36: {"triangle": 3, "square": 4, "exceptional": 5},               
+            37: {"archaic": 2, "unique": 3, "lucky": 6, "money": 7},  
+            38: {"aureum": 3, "crystallize": 5}, 
+            39: {"53_3": 3, "53": 53},  
+            40: {"ultimate": 1, "very_nice": 3, "archaic": 4, "triangle": 1, "square": 1, "kromer": 4, "error": 10,  "good": 100}, # 69,220 difficulty  
+            41: {"exotic": 2, "mythic": 7},                                                                   
+            42: {"exode": 2, "extreme": 3, "2048": 4},                                          
+            43: {"unusual": 1, "grass": 3},                                                            
+            44: {"superman": 3, "exotic": 2, "very_nice": 3, "man": 50},  
+            45: {"continental": 2, "unusual": 4},  
+            46: {"archidon": 1, "godly": 1, "pi": 31, "poop": 1},          
+            47: {"binary": 2, "exode": 4, "square": 8, "aureum": 10},       
+            48: {"enigmatic": 2, "quantum": 2, "binary": 1, "godly": 3}, 
+            49: {"53_4": 3, "53_3": 5, "53_2": 25, "53": 53},                 
+            50: {"divine": 3, "53_4": 1, "otherworldly": 4, "enigmatic": 1, "quantum": 1, "binary": 1, "continental": 1, "archidon": 2, "godly": 2}, # 518,347 diff.
+            51: {"ascendant": 2, "exode": 5},                                  
+            52: {"unfathomable": 1, "divine": 1, "extreme": 6},
+            53: {"miner": 5, "53_4": 3, "53_3": 53, "53": 69}, 
+            54: {"steel": 3, "grass": 7},  
+            55: {"easy": 4, "archidon": 10, "good": 1},           
+            56: {"negus": 4, "steel": 2, "freezing": 100},     
+            57: {"supreme": 5, "skilled": 3},                                 
+            58: {"common": 1},                                                           
+            59: {"unstoppable": 2, "charge": 4},                              
+            60: {"53_5": 5, "slick": 3, "redacted": 7},    
+            61: {"failure": 1, "deletion": 1, "fuchsia": 4, "negus": 8, "ascendant": 15}, # 5,973,332 diff
+            62: {"planetary": 3, "divine": 10, "binary": 20},
+            63: {"unique": 20, "triangle": 30, "exceptional": 40, "ruby": 51, "emerald": 51, "sapphire": 51},
+            64: {"enlightened": 2, "archaic": 64, "insane": 64, "great": 640},
+            65: {"interstellar": 5, "space": 8, "lottery": 10},
+            66: {"rainbow": 4, "atmospheric": 6, "acceleration": 8},
+            67: {"universal": 3, "what": 4, "planetary": 8},
+            68: {"transcendant": 4, "acoustic": 4, "rainbow": 6},
+            69: {"matrix": 3, "darkness": 3, "enlightened": 6, "nice": 69},
+            70: {"infrared": 5, "spectral": 4, "megaman": 3, "interstellar": 10}, # Tier 70 milestone
+            71: {"subatomic": 3, "megaman": 4, "universal": 8},
+            72: {"light": 2, "subatomic": 3, "transcendant": 6},
+            73: {"luminary": 3, "light": 3, "spectral": 5},
+            74: {"53_6": 5, "53_5": 10, "53_4": 20},
+            75: {"balance": 4, "luminary": 5, "light": 4},
+            76: {"radioactive": 3, "balance": 4, "subatomic": 7},
+            77: {"galactic": 3, "radioactive": 4, "53_6": 6},
+            78: {"creativity": 3, "galactic": 4, "luminary": 8},
+            79: {"uncomputable": 2, "creativity": 3, "galactic": 4},
+            80: {"radiant": 3, "temporal": 3, "uncomputable": 3, "balance": 8}, # Tier 80 milestone
+            81: {"ultraman": 2, "radiant": 4, "temporal": 6},
+            82: {"irradiated": 2, "ultraman": 3, "creativity": 6},
+            83: {"diamantine": 2, "emeradic": 2, "irradiated": 5},
+            84: {"53_7": 3, "diamantine": 2, "emeradic": 2, "ultraman": 4},
+            85: {"singularity": 2, "53_7": 3, "irradiated": 4},
+            86: {"angelic": 2, "singularity": 3, "diamantine": 4},
+            87: {"base_gap_1": 2, "angelic": 3, "singularity": 3},
+            88: {"lower_gap_1": 1, "base_gap_1": 2, "angelic": 4},
+            89: {"true_pi": 1, "lower_gap_1": 2, "base_gap_1": 3},
+            90: {"middle_gap_1": 1, "true_pi": 2, "53_7": 10, "radiant": 15}, # Tier 90 milestone
+            91: {"higher_gap_1": 1, "middle_gap_1": 2, "lower_gap_1": 3},
+            92: {"true_lottery": 1, "higher_gap_1": 2, "middle_gap_1": 2},
+            93: {"ultrafuchsia": 1, "true_lottery": 2, "true_pi": 4},
+            94: {"epinephrine": 1, "ultrafuchsia": 2, "higher_gap_1": 3},
+            95: {"infuntus": 2, "epinephrine": 2, "ultrafuchsia": 2},
+            96: {"eternal": 1, "infuntus": 2, "true_lottery": 3},
+            97: {"32_bit": 1, "eternal": 2, "infuntus": 3},
+            98: {"genetic": 1, "32_bit": 2, "eternal": 2},
+            99: {"jest": 1, "genetic": 2, "32_bit": 2, "base_gap_1": 10},
+            100: {"jotunn": 1, "jest": 2, "genetic": 3, "infuntus": 4, "lower_gap_1": 5}
+        },
+        "effect": lambda tier, user: {"luck_bonus": (0.3 * (tier * (2**math.floor(tier/10))))},
+    },
+    "exp_luck": {
+        "name": "📈 Exponential Luck",
+        "description": "rarity^(🍀0.2*tier)",
+        "max_tier": 5,
+        "requirements": {
+            1: {"common": 24, "uncommon": 16, "rare": 12, "epic": 8},
+            2: {"nice": 10, "poop": 10, "legendary": 5},
+            3: {"gilded": 8, "emerald": 4, "mythic": 2},
+            4: {"epic": 27, "anger": 14, "lucky": 6, "exceptional": 3},
+            5: {"jackpot": 15, "aureum": 8, "53_3": 5, "ultimate": 3, "godly": 1},
+            6: {"unfathomable": 2, "divine": 3, "otherworldly": 4, "enigmatic": 4, "extreme": 9},
+            7: {"planetary": 1, "redacted": 5, "steel": 7, "miner": 9, "53_4": 12, "insane": 30},
+            8: {"radiant": 1, "luminary": 4, "spectral": 5, "infrared": 5, "interstellar": 8, "hot": 100},
+            9: {"superman": 64, "charge": 44, "transcendant": 20, "balance": 10, "galactic": 7, "uncomputable": 5},
+            10: {"creativity": 12, "irradiated": 5, "53_7": 3, "singularity": 2, "angelic": 2, "base_gap_1": 1}
+        },
+        "effect": lambda tier, user: {
+            "luck_bonus": ((tier or 0) ** 0.2) * 0.1
+        },
+    },
+    "checklist_luck": {
+        "name": "📋 Checklist Luck",
+        "description": "Multiplies your luck based on how many rarities you've discovered.\nFormula: `1.0 + (rarities_discovered * 0.001 * tier)`",
+        "max_tier": 5,
+        "requirements": {
+            1: {"Amazing 📜 (1 in 100,000)": 3, "miner": 5, "unfathomable": 10},
+            2: {"steel": 5, "easy": 5},
+            3: {"negus": 5, "redacted": 3},
+            4: {"skilled": 5, "supreme": 3},
+            5: {"charge": 5, "unstoppable": 3}
+        },
+        "effect": lambda tier, user: {
+            "exp_bonus": 1.0 + (len(user.get('discovered', {})) * 0.001 * tier)
+        }
+    }
+}

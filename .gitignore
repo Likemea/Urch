@@ -1,0 +1,25 @@
+# Python temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Variables / Secrets
+.env
+.venv/
+env/
+venv/
+
+# SQLite Databases and temporary files
+*.db
+*.db-shm
+*.db-wal
+
+# JSON
+*.json
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# misc
+.google-cookie

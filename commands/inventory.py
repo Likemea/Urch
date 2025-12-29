@@ -1,0 +1,96 @@
+# Urch/commands/inventory.py
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+from utils import get_user_data, inventory_all_items_sorted
+from raritylist import RARITIES
+
+
+class InventoryView(discord.ui.View):
+    def __init__(self, user_id: str, items: list[tuple[str, int]]):
+        super().__init__(timeout=120)
+        self.user_id = str(user_id)
+        self.items = items  # list of (rarity, count)
+        self.page = 0
+        self.items_per_page = 10
+        self.update_buttons()
+
+    def format_page(self):
+        start = self.page * self.items_per_page
+        end = start + self.items_per_page
+        page_items = self.items[start:end]
+
+        embed = discord.Embed(
+            title=f"🎒 Inventory (Page {self.page+1}/{self.total_pages})",
+            color=discord.Color.blurple()
+        )
+        if page_items:
+            lines = [
+                f"{rarity} (x{count})" if count > 1 else rarity
+                for rarity, count in page_items
+            ]
+            embed.description = "\n".join(lines)
+        else:
+            embed.description = "Empty"
+
+        total_items = sum(count for _, count in self.items)
+        embed.set_footer(text=f"Total items: {total_items}")
+        return embed
+
+    @property
+    def total_pages(self):
+        return (len(self.items) + self.items_per_page - 1) // self.items_per_page or 1
+
+    def update_buttons(self):
+        labels = {getattr(c, "label", ""): c for c in self.children}
+        prev_btn = labels.get("⬅️ Prev")
+        next_btn = labels.get("➡️ Next")
+        if prev_btn:
+            prev_btn.disabled = self.page == 0
+        if next_btn:
+            next_btn.disabled = self.page >= self.total_pages - 1
+
+    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.user_id:
+            return await interaction.response.send_message("This inventory isn’t yours.", ephemeral=True)
+        if self.page > 0:
+            self.page -= 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.format_page(), view=self)
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.user_id:
+            return await interaction.response.send_message("This inventory isn’t yours.", ephemeral=True)
+        if self.page < self.total_pages - 1:
+            self.page += 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.format_page(), view=self)
+
+
+class InventoryCommand(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="inventory", description="View your inventory")
+    async def inventory(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        user = await get_user_data(user_id)
+        if not user or not user.get("inventory"):
+            await interaction.response.send_message("🎒 Your inventory is empty.", ephemeral=True)
+            return
+
+        items = await inventory_all_items_sorted(user_id, RARITIES)
+        if not items:
+            await interaction.response.send_message("🎒 Your inventory is empty.", ephemeral=True)
+            return
+
+        view = InventoryView(user_id, items)
+        embed = view.format_page()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+
+
+async def setup(bot):
+    await bot.add_cog(InventoryCommand(bot))

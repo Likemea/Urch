@@ -1,0 +1,70 @@
+# Urch/commands/setluck.py
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+from utils import ensure_user, save_user_data, get_user_data
+
+class SetLuckCommand(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="setluck", description="Set your effective luck")
+    async def setluck(self, interaction: discord.Interaction, value: float = 0.0):
+        user_id = str(interaction.user.id)
+        user = await ensure_user(user_id)
+        
+        # Get user's personal max_luck
+        personal_max = user.get("max_luck", 1.0)
+        
+        if value == -1:
+            # Remove override and restore to current base luck
+            if "luck_override" in user:
+                del user["luck_override"]
+                description = "🎲 Luck override removed"
+                color = discord.Color.blue()
+            else:
+                description = "❌ No luck override active"
+                color = discord.Color.red()
+                
+        elif value == 0:
+            # Set to personal max luck (respecting user's achievement)
+            user["luck_multi"] = personal_max
+            if "luck_override" in user:
+                del user["luck_override"]
+            description = f"🍀 Base luck set to your max: **{personal_max:.2f}**"
+            color = discord.Color.green()
+            
+        else:
+            # Set effective final luck override
+            override_value = float(value)
+            
+            if override_value > personal_max:
+                override_value = personal_max
+                description = f"⚠️ Override capped to your max: **{personal_max:.2f}**"
+            else:
+                description = f"🍀 Effective luck set to **{override_value:.2f}**"
+            
+            user["luck_override"] = override_value
+            color = discord.Color.gold()
+        
+        await save_user_data(user_id, user)
+        
+        # Create response embed
+        embed = discord.Embed(
+            title="🍀 Luck Configuration",
+            description=description,
+            color=color
+        )
+        
+        # Show current max luck
+        embed.add_field(
+            name="Max Luck", 
+            value=f"**{personal_max:.2f}**", 
+            inline=True
+        )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+async def setup(bot):
+    await bot.add_cog(SetLuckCommand(bot))
