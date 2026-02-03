@@ -166,6 +166,7 @@ class RollCommand(commands.Cog):
 
     @app_commands.command(name="roll", description="Roll for a rarity")
     async def roll(self, interaction: discord.Interaction):
+        await interaction.response.defer(thinking=True)
         user_id = str(interaction.user.id)
         all_rolls = []        
         user = await ensure_user(user_id)
@@ -211,7 +212,7 @@ class RollCommand(commands.Cog):
         embed.add_field(name="Luck", value=f"{luck:.2f}", inline=True)
 
         view = ButtonView(user_id, rarity, self.bot)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
 
 async def setup(bot):
     await bot.add_cog(RollCommand(bot))

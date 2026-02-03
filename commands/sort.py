@@ -1,13 +1,15 @@
 # Urch/commands/sort.py
 import io
 import random
+import asyncio # Added
 
 import discord
+import matplotlib
+matplotlib.use('Agg') # Set backend to Agg for server-side plotting (no GUI needed)
 import matplotlib.pyplot as plt
 from discord import app_commands
 from discord.ext import commands
 from PIL import Image
-
 
 class SortCommand(commands.Cog):
     def __init__(self, bot):
@@ -33,14 +35,14 @@ class SortCommand(commands.Cog):
                    size: int, 
                    algorithm: str = "bubble"):
         
-        if size < 2 or size > 25:
-            await interaction.response.send_message("Size must be between 2 and 25.", ephemeral=True)
+        if size < 2 or size > 15:
+            await interaction.response.send_message("Size must be between 2 and 15.", ephemeral=True)
             return
         
         await interaction.response.defer(thinking=True)
-        array = [random.randint(1, 100) for _ in range(size)]
         
-        # Dictionary mapping algorithm names to their visualization functions
+        # Dictionary mapping algorithm names to their functions
+        # Note: These are now synchronous functions (not async)
         sort_functions = {
             "bubble": self.visualize_bubble_sort,
             "selection": self.visualize_selection_sort,
@@ -54,18 +56,83 @@ class SortCommand(commands.Cog):
         }
         
         if algorithm not in sort_functions:
-            await interaction.followup.send(f"Unknown algorithm: {algorithm}. Available algorithms: {', '.join(sort_functions.keys())}", ephemeral=True)
+            await interaction.followup.send(f"Unknown algorithm: {algorithm}.", ephemeral=True)
             return
-        
-        # Get the appropriate visualization function and call it
-        images = await sort_functions[algorithm](array.copy())
 
-        with io.BytesIO() as image_binary:
-            images[0].save(image_binary, format='GIF', append_images=images[1:], save_all=True, duration=500, loop=0)
+        # Run the heavy processing in a separate thread to prevent blocking the bot
+        loop = asyncio.get_running_loop()
+        try:
+            # We pass the algorithm function and size to a blocking wrapper
+            image_binary = await loop.run_in_executor(
+                None, 
+                self._run_blocking_sort_generation, 
+                sort_functions[algorithm], 
+                size, 
+                algorithm
+            )
+            
+            if image_binary:
+                await interaction.followup.send(file=discord.File(fp=image_binary, filename=f'{algorithm}_sort.gif'))
+            else:
+                await interaction.followup.send("Failed to generate GIF.")
+                
+        except Exception as e:
+            print(f"Error in sort command: {e}")
+            await interaction.followup.send(f"An error occurred: {e}")
+
+    def _run_blocking_sort_generation(self, sort_func, size, algorithm_name):
+        """Wrapper function to run synchronously in a thread."""
+        try:
+            array = [random.randint(1, 100) for _ in range(size)]
+            images = sort_func(array.copy())
+
+            if not images:
+                return None
+
+            # DO NOT use 'with' here. We need to return this open buffer to Discord.
+            image_binary = io.BytesIO()
+            images[0].save(
+                image_binary, 
+                format='GIF', 
+                append_images=images[1:], 
+                save_all=True, 
+                duration=500, 
+                loop=0
+            )
             image_binary.seek(0)
-            await interaction.followup.send(file=discord.File(fp=image_binary, filename=f'{algorithm}_sort.gif'))
+            return image_binary
+        except Exception as e:
+            print(f"Blocking sort generation error: {e}")
+            return None
 
-    async def visualize_bubble_sort(self, array):
+    # --- All helper functions below are now synchronous (def, not async def) ---
+
+    def create_image(self, array, algorithm_name):
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.bar(range(len(array)), array, color='skyblue', edgecolor='black')
+        ax.set_xlabel('Index')
+        ax.set_ylabel('Value')
+        ax.set_title(f'{algorithm_name} Visualization')
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        # Create buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        
+        # Open image and LOAD IT into memory
+        # .load() is critical here. It reads from buf, copies pixels to RAM,
+        # and allows us to close buf safely.
+        image = Image.open(buf)
+        image.load() 
+        
+        # Now we can close the buffer to save RAM before returning
+        buf.close() 
+        
+        return image
+
+    def visualize_bubble_sort(self, array):
         images = []
         n = len(array)
         for i in range(n):
@@ -75,7 +142,7 @@ class SortCommand(commands.Cog):
                 images.append(self.create_image(array, "Bubble Sort"))
         return images
 
-    async def visualize_selection_sort(self, array):
+    def visualize_selection_sort(self, array):
         images = []
         n = len(array)
         for i in range(n):
@@ -87,7 +154,7 @@ class SortCommand(commands.Cog):
             images.append(self.create_image(array, "Selection Sort"))
         return images
 
-    async def visualize_insertion_sort(self, array):
+    def visualize_insertion_sort(self, array):
         images = []
         for i in range(1, len(array)):
             key = array[i]
@@ -99,19 +166,19 @@ class SortCommand(commands.Cog):
             images.append(self.create_image(array, "Insertion Sort"))
         return images
 
-    async def visualize_merge_sort(self, array):
+    def visualize_merge_sort(self, array):
         images = []
-        await self.merge_sort_helper(array, 0, len(array) - 1, images)
+        self.merge_sort_helper(array, 0, len(array) - 1, images)
         return images
 
-    async def merge_sort_helper(self, array, left, right, images):
+    def merge_sort_helper(self, array, left, right, images):
         if left < right:
             mid = (left + right) // 2
-            await self.merge_sort_helper(array, left, mid, images)
-            await self.merge_sort_helper(array, mid + 1, right, images)
-            await self.merge(array, left, mid, right, images)
+            self.merge_sort_helper(array, left, mid, images)
+            self.merge_sort_helper(array, mid + 1, right, images)
+            self.merge(array, left, mid, right, images)
 
-    async def merge(self, array, left, mid, right, images):
+    def merge(self, array, left, mid, right, images):
         left_arr = array[left:mid+1]
         right_arr = array[mid+1:right+1]
 
@@ -140,18 +207,18 @@ class SortCommand(commands.Cog):
             k += 1
             images.append(self.create_image(array, "Merge Sort"))
 
-    async def visualize_quick_sort(self, array):
+    def visualize_quick_sort(self, array):
         images = []
-        await self.quick_sort_helper(array, 0, len(array) - 1, images)
+        self.quick_sort_helper(array, 0, len(array) - 1, images)
         return images
 
-    async def quick_sort_helper(self, array, low, high, images):
+    def quick_sort_helper(self, array, low, high, images):
         if low < high:
-            pi = await self.partition(array, low, high, images)
-            await self.quick_sort_helper(array, low, pi - 1, images)
-            await self.quick_sort_helper(array, pi + 1, high, images)
+            pi = self.partition(array, low, high, images)
+            self.quick_sort_helper(array, low, pi - 1, images)
+            self.quick_sort_helper(array, pi + 1, high, images)
 
-    async def partition(self, array, low, high, images):
+    def partition(self, array, low, high, images):
         pivot = array[high]
         i = low - 1
 
@@ -165,23 +232,21 @@ class SortCommand(commands.Cog):
         images.append(self.create_image(array, "Quick Sort"))
         return i + 1
 
-    async def visualize_heap_sort(self, array):
+    def visualize_heap_sort(self, array):
         images = []
         n = len(array)
 
-        # Build heap
         for i in range(n // 2 - 1, -1, -1):
-            await self.heapify(array, n, i, images)
+            self.heapify(array, n, i, images)
 
-        # Extract elements from heap one by one
         for i in range(n - 1, 0, -1):
             array[0], array[i] = array[i], array[0]
             images.append(self.create_image(array, "Heap Sort"))
-            await self.heapify(array, i, 0, images)
+            self.heapify(array, i, 0, images)
         
         return images
 
-    async def heapify(self, array, n, i, images):
+    def heapify(self, array, n, i, images):
         largest = i
         left = 2 * i + 1
         right = 2 * i + 2
@@ -195,9 +260,9 @@ class SortCommand(commands.Cog):
         if largest != i:
             array[i], array[largest] = array[largest], array[i]
             images.append(self.create_image(array, "Heap Sort"))
-            await self.heapify(array, n, largest, images)
+            self.heapify(array, n, largest, images)
 
-    async def visualize_cocktail_sort(self, array):
+    def visualize_cocktail_sort(self, array):
         images = []
         n = len(array)
         start = 0
@@ -207,7 +272,6 @@ class SortCommand(commands.Cog):
         while swapped:
             swapped = False
             
-            # Forward pass
             for i in range(start, end):
                 if array[i] > array[i + 1]:
                     array[i], array[i + 1] = array[i + 1], array[i]
@@ -220,7 +284,6 @@ class SortCommand(commands.Cog):
             end -= 1
             swapped = False
             
-            # Backward pass
             for i in range(end - 1, start - 1, -1):
                 if array[i] > array[i + 1]:
                     array[i], array[i + 1] = array[i + 1], array[i]
@@ -231,7 +294,7 @@ class SortCommand(commands.Cog):
         
         return images
 
-    async def visualize_gnome_sort(self, array):
+    def visualize_gnome_sort(self, array):
         images = []
         index = 0
         n = len(array)
@@ -248,7 +311,7 @@ class SortCommand(commands.Cog):
         
         return images
 
-    async def visualize_shell_sort(self, array):
+    def visualize_shell_sort(self, array):
         images = []
         n = len(array)
         gap = n // 2
@@ -263,29 +326,11 @@ class SortCommand(commands.Cog):
                     images.append(self.create_image(array, "Shell Sort"))
                 
                 array[j] = temp
-                if j != i:  # Only add image if there was an actual change
+                if j != i:
                     images.append(self.create_image(array, "Shell Sort"))
             gap //= 2
         
         return images
-
-    def create_image(self, array, algorithm_name):
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.bar(range(len(array)), array, color='skyblue', edgecolor='black')
-        ax.set_xlabel('Index')
-        ax.set_ylabel('Value')
-        ax.set_title(f'{algorithm_name} Visualization')
-        
-        # Add grid for better readability
-        ax.grid(axis='y', linestyle='--', alpha=0.7)
-
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
-        buf.seek(0)
-        plt.close(fig)
-
-        image = Image.open(buf)
-        return image
 
 async def setup(bot):
     await bot.add_cog(SortCommand(bot))

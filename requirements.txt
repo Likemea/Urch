@@ -1,0 +1,8 @@
+discord.py
+aiosqlite
+requests
+aiohttp
+pytesseract
+Pillow
+numpy
+python-dotenv

@@ -78,70 +78,70 @@ async def save_user_data(user_id: str, data: Dict[str, any]):
     return await db.save_user_data(user_id, data)
     
 async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
-    await db.ensure_user(user_id)
-    user = await db.get_user_data(user_id)
-    if not user: return
+    async with db.lock_user(user_id):
+        user = await db.get_user_data(user_id)
+        if not user: return
 
-    # Rarity check
-    if new_rarity not in RARITY_NAME_SET:
-        pass # Should theoretically be in set if coming from roll_rarity
+        # Rarity check
+        if new_rarity not in RARITY_NAME_SET:
+            pass # Should theoretically be in set if coming from roll_rarity
 
-    # Highscore Logic
-    rarity_names = [r[0] for r in RARITIES]
-    current_high = user.get('highscore')
-    update_high = False
-    
-    if not current_high:
-        update_high = True
-    elif new_rarity in rarity_names:
-        try:
-            if rarity_names.index(new_rarity) > rarity_names.index(current_high):
-                update_high = True
-        except ValueError:
-            pass
+        # Highscore Logic
+        rarity_names = [r[0] for r in RARITIES]
+        current_high = user.get('highscore')
+        update_high = False
+        
+        if not current_high:
+            update_high = True
+        elif new_rarity in rarity_names:
+            try:
+                if rarity_names.index(new_rarity) > rarity_names.index(current_high):
+                    update_high = True
+            except ValueError:
+                pass
+                
+        if update_high:
+            user['highscore'] = new_rarity
+
+        if action == "keep":
+            # Add to inventory (Rarity)
+            inventory = user.setdefault("inventory", {})
+            inventory[new_rarity] = inventory.get(new_rarity, 0) + 1
             
-    if update_high:
-        user['highscore'] = new_rarity
-
-    if action == "keep":
-        # Add to inventory (Rarity)
-        inventory = user.setdefault("inventory", {})
-        inventory[new_rarity] = inventory.get(new_rarity, 0) + 1
-        
-        # Mark Discovered
-        discovered = user.setdefault("discovered", {})
-        discovered[new_rarity] = True
-        
-        # Stats
-        user['roll_count'] = user.get('roll_count', 0) + 1
-        
-        # Luck Growth
-        current_luck = user.get('luck_multi', 1.0)
-        new_luck = current_luck + LUCK_GROWTH_PER_ROLL
-        user['luck_multi'] = round(new_luck, 3)
-        
-        if new_luck > user.get('max_luck', 1.0):
-            user['max_luck'] = round(new_luck, 3)
+            # Mark Discovered
+            discovered = user.setdefault("discovered", {})
+            discovered[new_rarity] = True
             
-        # Clover Logic
-        bonuses = await get_upgrade_effect(user_id, user_obj=user)
-        effective_luck = (new_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
-        
-        if effective_luck >= 1000:
-             every = bonuses.get("clover_every", 10)
-             current_rolls = user['roll_count']
-             
-             expected = int((current_rolls // every) * user.get('clover_multi', 1.0))
-             already = user.get('clovers_earned', 0)
-             
-             if expected > already:
-                 diff = expected - already
-                 # Add Clovers (Currency)
-                 currencies = user.setdefault("currencies", {})
-                 currencies["clovers"] = currencies.get("clovers", 0) + diff
-                 user['clovers_earned'] = expected
+            # Stats
+            user['roll_count'] = user.get('roll_count', 0) + 1
+            
+            # Luck Growth
+            current_luck = user.get('luck_multi', 1.0)
+            new_luck = current_luck + LUCK_GROWTH_PER_ROLL
+            user['luck_multi'] = round(new_luck, 3)
+            
+            if new_luck > user.get('max_luck', 1.0):
+                user['max_luck'] = round(new_luck, 3)
+                
+            # Clover Logic
+            bonuses = await get_upgrade_effect(user_id, user_obj=user)
+            effective_luck = (new_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
+            
+            if effective_luck >= 1000:
+                 every = bonuses.get("clover_every", 10)
+                 current_rolls = user['roll_count']
+                 
+                 expected = int((current_rolls // every) * user.get('clover_multi', 1.0))
+                 already = user.get('clovers_earned', 0)
+                 
+                 if expected > already:
+                     diff = expected - already
+                     # Add Clovers (Currency)
+                     currencies = user.setdefault("currencies", {})
+                     currencies["clovers"] = currencies.get("clovers", 0) + diff
+                     user['clovers_earned'] = expected
 
-    await db.save_user_data(user_id, user)
+        await db.save_user_data(user_id, user)
 
 # ───────────────────────────────
 # INVENTORY & CURRENCY SYSTEM
@@ -149,45 +149,50 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
 
 async def currency_add(user_id: str, item_key: str, amount: int = 1):
     """Smart add: detects if item is currency or inventory based on key"""
-    user = await ensure_user(user_id)
-    
-    db_key, category = resolve_item_key(item_key)
-    
-    if category == "currency":
-        curr = user.setdefault("currencies", {})
-        curr[db_key] = curr.get(db_key, 0) + int(amount)
-    else:
-        # Inventory Item
-        inv = user.setdefault("inventory", {})
-        inv[db_key] = inv.get(db_key, 0) + int(amount)
-        # Auto-discover if adding an item
-        disc = user.setdefault("discovered", {})
-        disc[db_key] = True
+    async with db.lock_user(user_id):
+        user = await db.get_user_data(user_id)
+        if not user: return
         
-    await db.save_user_data(user_id, user)
+        db_key, category = resolve_item_key(item_key)
+        
+        if category == "currency":
+            curr = user.setdefault("currencies", {})
+            curr[db_key] = curr.get(db_key, 0) + int(amount)
+        else:
+            # Inventory Item
+            inv = user.setdefault("inventory", {})
+            inv[db_key] = inv.get(db_key, 0) + int(amount)
+            # Auto-discover if adding an item
+            disc = user.setdefault("discovered", {})
+            disc[db_key] = True
+            
+        await db.save_user_data(user_id, user)
 
 async def currency_remove(user_id: str, item_key: str, amount: int = 1) -> bool:
     """Smart remove: checks correct storage location"""
-    user = await ensure_user(user_id)
-    db_key, category = resolve_item_key(item_key)
-    
-    if category == "currency":
-        currencies = user.get("currencies", {})
-        if currencies.get(db_key, 0) >= amount:
-            currencies[db_key] -= amount
-            if currencies[db_key] == 0: del currencies[db_key]
-            await db.save_user_data(user_id, user)
-            return True
-        return False
-    else:
-        # Inventory
-        inventory = user.get("inventory", {})
-        if inventory.get(db_key, 0) >= amount:
-            inventory[db_key] -= amount
-            if inventory[db_key] == 0: del inventory[db_key]
-            await db.save_user_data(user_id, user)
-            return True
-        return False
+    async with db.lock_user(user_id):
+        user = await db.get_user_data(user_id)
+        if not user: return False
+        
+        db_key, category = resolve_item_key(item_key)
+        
+        if category == "currency":
+            currencies = user.get("currencies", {})
+            if currencies.get(db_key, 0) >= amount:
+                currencies[db_key] -= amount
+                if currencies[db_key] == 0: del currencies[db_key]
+                await db.save_user_data(user_id, user)
+                return True
+            return False
+        else:
+            # Inventory
+            inventory = user.get("inventory", {})
+            if inventory.get(db_key, 0) >= amount:
+                inventory[db_key] -= amount
+                if inventory[db_key] == 0: del inventory[db_key]
+                await db.save_user_data(user_id, user)
+                return True
+            return False
 
 async def currency_count(user_id: str, item_key: str) -> int:
     """Smart count: looks in correct storage location"""
@@ -221,25 +226,26 @@ async def has_requirements(user_id: str, requirements: Dict[str, int]) -> Tuple[
     return (len(missing) == 0, missing)
 
 async def consume_requirements(user_id: str, requirements: Dict[str, int]) -> bool:
-    """Consumes items from both currencies and inventory"""
-    ok, missing = await has_requirements(user_id, requirements)
-    if not ok: return False
-    
-    user = await ensure_user(user_id)
-    
-    for item_key, need in requirements.items():
-        db_key, category = resolve_item_key(item_key)
+    async with db.lock_user(user_id):
+        ok, missing = await has_requirements(user_id, requirements)
+        if not ok: return False
         
-        if category == "currency":
-            # Direct modify dict ref
-            if "currencies" not in user: user["currencies"] = {}
-            user["currencies"][db_key] -= need
-        else:
-            if "inventory" not in user: user["inventory"] = {}
-            user["inventory"][db_key] -= need
+        user = await db.get_user_data(user_id)
+        if not user: return False
+        
+        for item_key, need in requirements.items():
+            db_key, category = resolve_item_key(item_key)
             
-    await db.save_user_data(user_id, user)
-    return True
+            if category == "currency":
+                # Direct modify dict ref
+                if "currencies" not in user: user["currencies"] = {}
+                user["currencies"][db_key] -= need
+            else:
+                if "inventory" not in user: user["inventory"] = {}
+                user["inventory"][db_key] -= need
+                
+        await db.save_user_data(user_id, user)
+        return True
 
 async def get_item_count(user_id: str, item_key: str) -> int:
     """Wrapper for currency_count to maintain compatibility"""
@@ -304,10 +310,22 @@ async def roll_rarity(user_id: str) -> str:
 # --- Upgrade Functions ---
 
 async def get_upgrade_effect(user_id: str, user_obj: dict = None) -> Dict[str, float]:
+    # 1. Ensure we have the user object
     if user_obj is None:
         user_obj = await get_user_data(user_id)
-        
-    return calc_upgrade_effect(user_id, user_obj)
+    
+    if not user_obj:
+        # Return default structure if user doesn't exist
+        return calc_upgrade_effect(user_id, {}, 1.0)
+
+    # 2. Calculate the checklist bonus locally (avoids circular import)
+    # Uses the constant CHECKLIST_BONUS already defined in utils.py
+    discovered = user_obj.get("discovered", {}) or {}
+    count = sum(1 for v in discovered.values() if v)
+    checklist_multiplier = 1.0 + (CHECKLIST_BONUS * count)
+
+    # 3. Pass both the object AND the multiplier to the logic function
+    return calc_upgrade_effect(user_id, user_obj, checklist_multiplier)
 
 async def get_checklist_bonus(user_id: str) -> Dict[str, float]:
     user = await ensure_user(user_id) 
@@ -376,8 +394,19 @@ async def get_messages_for_context(user_id, is_dm, guild_id=None, include_intern
     return await db.get_messages_for_context(user_id if is_dm else None, guild_id if not is_dm else None, 
                                            DM_HISTORY_LIMIT if is_dm else SERVER_HISTORY_LIMIT, include_internal, read_only)
 
-async def append_message_for_context(user_id, is_dm, role, content, guild_id=None, message_ids=None, author_id=None):
-    await db.append_message(user_id if is_dm else None, guild_id if not is_dm else None, role, content, message_ids, str(author_id) if author_id else None)
+async def append_message_for_context(user_id, is_dm, role, content, guild_id=None, message_ids=None, author_id=None): 
+    db_user_id = str(user_id) if is_dm else None
+    db_guild_id = str(guild_id) if not is_dm and guild_id else None
+    final_author_id = str(author_id) if author_id else None
+
+    await db.add_conversation_message(
+        user_id=db_user_id,
+        guild_id=db_guild_id,
+        role=role,
+        content=content,
+        message_ids=message_ids,
+        author_id=final_author_id
+    )
 
 async def update_message_in_history(user_id, is_dm, guild_id, message_id, new_content):
     return await db.update_message_in_history(user_id, guild_id, message_id, new_content)

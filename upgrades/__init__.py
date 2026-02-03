@@ -12,16 +12,14 @@ UPGRADE_CATEGORIES = {
     "clover": CLOVER_UPGRADES,
 }
 
-def get_upgrade_effect(user_id: str) -> Dict[str, float]:
+# 1. Update arguments to accept user_obj and the pre-calculated checklist bonus
+def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus: float = 1.0) -> Dict[str, float]:
     """
-    Returns combined upgrade-derived modifiers for a user
-    Keys:
-      - "luck_bonus": additive luck (added to base luck_multi)
-      - "exp_bonus": multiplicative luck multiplier (default 1.0)
-      - "multi_roll": integer extra rolls
-      - "clover_bonus": for clovers currency, additive
+    Returns combined upgrade-derived modifiers for a user.
+    Pure logic only - does not fetch from DB.
     """
-    from utils import user_data, get_checklist_bonus
+    # 2. REMOVED the import from utils to fix ImportError
+    # from utils import user_data, get_checklist_bonus <-- DELETED
     from raritylist import RARITIES
 
     effects = {
@@ -33,15 +31,15 @@ def get_upgrade_effect(user_id: str) -> Dict[str, float]:
         "lucky_roll_active": False,
     }
 
-    user = user_data.get(str(user_id))
+    # 3. Use the passed object directly
+    user = user_obj
     if not user:
         return effects    
         
-    effects["exp_bonus"] *= get_checklist_bonus(user_id)["exp_bonus"]
-
+    # 4. Apply the passed checklist bonus
+    effects["exp_bonus"] *= checklist_exp_bonus
 
     # Upgrades are expected in user["upgrades"] as categories:
-    # user["upgrades"]["luck"][upgrade_key] = tier
     upgrades = user.get("upgrades", {})
 
     # ---- Luck category ----
@@ -62,23 +60,17 @@ def get_upgrade_effect(user_id: str) -> Dict[str, float]:
                 try:
                     res = defn["effect"](tier, user)
                     if isinstance(res, dict):
-                        # FIX: Accumulate ALL keys, not just luck_bonus
                         effects["luck_bonus"] += res.get("luck_bonus", 0.0)
-                        
-                        # Handle multiplicative stacking for exp_bonus
                         if "exp_bonus" in res:
                             effects["exp_bonus"] *= res["exp_bonus"]
-                            
-                        # Handle other potential returns
                         effects["multi_roll"] += res.get("multi_roll", 0)
                         effects["clover_bonus"] += res.get("clover_bonus", 0.0)
-                        
                 except Exception as e:
                     print(f"Error calculating luck upgrade {key}: {e}")
 
         # exponential luck
         if key == "exp_luck" and key in LUCK_UPGRADES:
-            rarity_names = [r for r, _ in RARITIES]
+            rarity_names = [r[0] for r in RARITIES]
             best = user.get("highscore", rarity_names[0] if rarity_names else None)
             try:
                 idx = rarity_names.index(best)
@@ -95,8 +87,7 @@ def get_upgrade_effect(user_id: str) -> Dict[str, float]:
     # ---- Roll category ----
     roll_upgs = upgrades.get("roll", {})
     for key, tier in roll_upgs.items():
-        if not tier:
-            continue
+        if not tier: continue
         tier = int(tier)
         if key in ROLL_UPGRADES:
             defn = ROLL_UPGRADES[key]
@@ -115,8 +106,7 @@ def get_upgrade_effect(user_id: str) -> Dict[str, float]:
     # ---- Clover category ----
     clover_upgs = upgrades.get("clover", {})
     for key, tier in clover_upgs.items():
-        if not tier:
-            continue
+        if not tier: continue
         tier = int(tier)
         if key in CLOVER_UPGRADES:
             defn = CLOVER_UPGRADES[key]
@@ -132,7 +122,6 @@ def get_upgrade_effect(user_id: str) -> Dict[str, float]:
                         
     if effects["lucky_roll_active"]:
         base_luck = float(user.get("luck_multi", 1.0))
-        # Calculate luck based on bonuses gathered so far
         current_luck = (base_luck + effects["luck_bonus"]) * effects["exp_bonus"]
         
         if current_luck > 1:
@@ -140,7 +129,6 @@ def get_upgrade_effect(user_id: str) -> Dict[str, float]:
                 extra_rolls = math.floor(math.log10(current_luck) * 1.25)
                 effects["multi_roll"] += int(extra_rolls)
             except ValueError:
-                pass # Safe guard against log errors
+                pass
 
     return effects
-

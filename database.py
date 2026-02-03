@@ -4,8 +4,9 @@ import asyncio
 import json
 import os
 from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +17,15 @@ class Database:
         self.db_path = db_path
         self.conn = None
         self._lock = asyncio.Lock()
+        self._user_locks: Dict[str, asyncio.Lock] = {}
+        self._lock_usage: Dict[str, datetime] = {}
         
     async def initialize(self):
         """Initialize database and create tables"""
         self.conn = await aiosqlite.connect(self.db_path)
         # Enable WAL mode for concurrency and speed
         await self.conn.execute("PRAGMA journal_mode=WAL")
+        await self.conn.execute("PRAGMA synchronous=NORMAL")
         await self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.row_factory = aiosqlite.Row
         # Users table
@@ -133,6 +137,35 @@ class Database:
         
         logger.info("Database initialized successfully")
         
+    @contextlib.asynccontextmanager
+    async def lock_user(self, user_id: str):
+        """Asynchronous context manager for per-user locking"""
+        async with self._lock:
+            if user_id not in self._user_locks:
+                self._user_locks[user_id] = asyncio.Lock()
+            lock = self._user_locks[user_id]
+            self._lock_usage[user_id] = datetime.now()
+        
+        async with lock:
+            yield
+            
+        # Optional: Periodic cleanup
+        if len(self._user_locks) > 100:
+            asyncio.create_task(self._cleanup_locks())
+
+    async def _cleanup_locks(self):
+        """Internal: Clean up old locks that haven't been used in a while"""
+        async with self._lock:
+            now = datetime.now()
+            threshold = now - timedelta(hours=1)
+            to_delete = [
+                uid for uid, last_used in self._lock_usage.items() 
+                if last_used < threshold and not self._user_locks[uid].locked()
+            ]
+            for uid in to_delete:
+                del self._user_locks[uid]
+                del self._lock_usage[uid]
+
     async def _check_conn(self):
         if not self.conn:
             await self.initialize()
@@ -258,7 +291,7 @@ class Database:
                 params.get("active_persona", "Default"),
                 params.get("last_summary_time")
             ))
-            await db.commit()
+            await self.conn.commit()
     
     async def set_user_param(self, user_id: str, param_name: str, value: Any):
         await self._check_conn()
@@ -352,6 +385,20 @@ class Database:
             return True
     
     # --- Conversation History ---
+
+    async def add_conversation_message(self, user_id: str, guild_id: str, role: str, content: str, message_ids: list = None, author_id: str = None):
+        await self._check_conn()
+        timestamp = datetime.utcnow().isoformat()
+        
+        msg_ids_json = json.dumps(message_ids) if message_ids else None
+        
+        async with self._lock:
+            await self.conn.execute("""
+                INSERT INTO conversation_history 
+                (user_id, guild_id, role, content, timestamp, message_ids, author_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, guild_id, role, content, timestamp, msg_ids_json, author_id))
+            await self.conn.commit()
     
     async def append_message(self, user_id, guild_id, role, content, message_ids=None, author_id=None):
         await self._check_conn()

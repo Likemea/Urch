@@ -4,7 +4,6 @@ import json
 import os
 import re
 import time
-import atexit
 import datetime
 from database import db
 import aiosqlite
@@ -38,8 +37,6 @@ intents.messages = True
 intents.message_content = True
 intents.reactions = True
 bot = commands.Bot(command_prefix='!', intents=intents)
-
-atexit.register(lambda: save_conversation_history())
 
 async def initialize_database():
     """Initialize SQLite database on startup"""
@@ -258,6 +255,8 @@ async def generate_response(prompt, conversation_history, user_id, image_url=Non
         response_json, model_used = call_model_with_retry(payload)
         elapsed = time.perf_counter() - start
         assistant_response = response_json["choices"][0]["message"]["content"].strip()
+        print(f"User: {prompt}")
+        print(f"Assistant: {assistant_response}")
 
         return {
             "raw_response": assistant_response,
@@ -278,7 +277,7 @@ async def do_agentic(prompt: str):
             "You are an intelligent tool orchestrator.\n"
             "Analyze the user's request and determine the best tool to use.\n\n"
             "Tools:\n"
-            "1. web_search(query: str, results: OptionalInt[1-5]): Use for current events, news, facts, documentation, or retrieving specific info from the internet.\n"
+            "1. web_search(query: str): Use for current events, news, facts, documentation, or retrieving specific info from the internet.\n"
             "2. generate_image(prompt): Use ONLY when the user specifically asks to draw, paint, generate, or create an image/picture.\n"
             "3. none: Don't need any tool"
             "\n\n"
@@ -310,7 +309,6 @@ async def do_agentic(prompt: str):
         
         try:
             result = json.loads(content)
-            # Normalize keys just in case
             tool = result.get("tool", "none").lower()
             args = result.get("args", "")
             return {"tool": tool, "args": args}
@@ -557,7 +555,6 @@ async def on_message_edit(before, after):
 
 @bot.event
 async def on_message_delete(message):
-    # Check context
     is_dm = isinstance(message.channel, discord.DMChannel)
     user_id_str = str(message.author.id)
     guild_id = str(message.guild.id) if message.guild else None
@@ -567,7 +564,6 @@ async def on_message_delete(message):
 
 @bot.event
 async def on_raw_reaction_add(payload):
-    # Ignore bot's own reactions
     if payload.user_id == bot.user.id:
         return
 
@@ -584,7 +580,6 @@ async def on_raw_reaction_add(payload):
     except discord.NotFound:
         return
 
-    # Ensure message is from the bot
     if message.author.id != bot.user.id:
         return
 
@@ -622,7 +617,6 @@ async def on_raw_reaction_add(payload):
     # ───────────────────────────────
     elif emoji == '♻️':
         try:
-            # Determine permission (Same as delete - only prompter or admin)
             allowed = False
             if is_dm:
                 allowed = True
@@ -638,21 +632,19 @@ async def on_raw_reaction_add(payload):
                 prompt, context = await get_context_for_message(user_id_str, is_dm, guild_id, message.id)
                 
                 if prompt and context is not None:                    
-                    # CRITICAL FIX: Add the prompt back to context so the model sees it!
+                    # Add the prompt back to context so the model sees it
                     context.append({"role": "user", "content": prompt})
 
                     # Fetch user for personas
                     user_obj = bot.get_user(payload.user_id) or await bot.fetch_user(payload.user_id)
                     
                     # Generate new response
-                    # Pass memory retrieval here too if we want consistency, but simple regen might skip it for speed
                     response = await generate_response(prompt, context, user_id_str, user=user_obj, channel=channel, guild=message.guild)
                     
                     if response and "raw_response" in response:
                         new_content = response["display_response"]
                         
                         if new_content and new_content.strip():
-                            # Edit the Discord message
                             await message.edit(content=new_content)
                             
                             # Update the history for this message
@@ -666,7 +658,6 @@ async def on_raw_reaction_add(payload):
 
         except Exception as e:
             print(f"Error handling regenerate reaction: {e}")
-            # Check if the message still exists before trying to send error
             try:
                 await message.channel.send(f"⚠️ Error: {e}", delete_after=5)
             except:
