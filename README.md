@@ -39,7 +39,7 @@ Urch is built with a modern, asynchronous Python stack:
 | Category | Libraries |
 | :--- | :--- |
 | **Framework** | `discord.py` |
-| **AI/ML** | `Groq API`, `requests`, `openai` |
+| **AI/ML** | `Groq API`, `requests`, `sentence-transformers` |
 | **Database** | `aiosqlite` (Async SQLite) |
 | **Image Processing** | `Pillow` (PIL), `numpy` |
 | **Computer Vision** | `pytesseract` (Tesseract OCR) |
