@@ -1,10 +1,10 @@
-# Urch AI & RNG Bot
+# Urch AI
 
 ![Urch Banner](https://img.shields.io/badge/Urch-AI%20%26%20RNG-blue?style=for-the-badge)
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/python-3.9+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
 ![Discord.py](https://img.shields.io/badge/discord.py-2.3+-blue.svg?style=for-the-badge&logo=discord&logoColor=white)
 
-**Urch** is a powerful, multi-functional Discord bot that seamlessly integrates advanced AI capabilities with an addictive luck-based RNG (Random Number Generation) gacha game. Whether you're looking for an intelligent assistant or a competitive rolling experience, Urch has you covered.
+**Urch** is a powerful, multi-functional Discord bot that integrates advanced AI capabilities with an addictive luck-based RNG gacha game. Whether you're looking for an intelligent assistant or a competitive rolling experience, Urch has you covered.
 
 ---
 
@@ -51,8 +51,8 @@ Urch is built with a modern, asynchronous Python stack:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/urch.git
-   cd urch
+   git clone https://github.com/Likemea/Urch.git
+   cd Urch
    ```
 
 2. **Install dependencies**:
@@ -64,7 +64,7 @@ Urch is built with a modern, asynchronous Python stack:
 3. **Configure Environment Variables**:
    Create a `.env` file or export the following variables:
    - `BOT_TOKEN`: Your Discord Bot Token.
-   - `GROQ_API_KEY`: Your Groq Cloud API Key.
+   - `GROQ_API_KEY`: Your Groq Cloud API Key. 
 
 4. **Run the bot**:
    ```bash
@@ -78,7 +78,7 @@ Urch is built with a modern, asynchronous Python stack:
 - `main.py`: The core entry point and AI orchestration logic.
 - `commands/`: Contains all Discord slash commands and context menus.
 - `functions/`: Core logic for AI tools (Web Search, Image Gen, Memory).
-- `upgrades/`: Logic for the RNG gacha progression system.
+- `upgrades/`: Logic for the RNG gacha system.
 - `database.py`: Database schema and connection management.
 - `utils.py`: Shared helper functions and AI configuration.
 
