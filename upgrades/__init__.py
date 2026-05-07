@@ -5,11 +5,13 @@ from typing import Dict
 from .luck_upgrades import LUCK_UPGRADES
 from .roll_upgrades import ROLL_UPGRADES
 from .clover_upgrades import CLOVER_UPGRADES
+from .autoroll_upgrades import AUTOROLL_UPGRADES
 
 UPGRADE_CATEGORIES = {
     "luck": LUCK_UPGRADES,
     "roll": ROLL_UPGRADES,
     "clover": CLOVER_UPGRADES,
+    "autoroll": AUTOROLL_UPGRADES,
 }
 
 # 1. Update arguments to accept user_obj and the pre-calculated checklist bonus

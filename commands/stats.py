@@ -12,16 +12,12 @@ class StatsCommand(commands.Cog):
 
     @app_commands.command(name="stats", description="View bot statistics")
     async def stats(self, interaction: discord.Interaction):
-        # Calculate Uptime
         current_time = time.time()
         difference = int(current_time - self.start_time)
         uptime_str = str(datetime.timedelta(seconds=difference))
         
-        # Server Count (Guilds)
         guild_count = len(self.bot.guilds)
         
-        # User Count (Approximate - sum of members in all guilds)
-        # Note: This might be inaccurate in Sharded bots, but fine here.
         user_count = sum(g.member_count for g in self.bot.guilds)
 
         embed = discord.Embed(title="Bot Statistics", color=discord.Color.gold())

@@ -14,11 +14,9 @@ class SetLuckCommand(commands.Cog):
         user_id = str(interaction.user.id)
         user = await ensure_user(user_id)
         
-        # Get user's personal max_luck
         personal_max = user.get("max_luck", 1.0)
         
         if value == -1:
-            # Remove override and restore to current base luck
             if "luck_override" in user:
                 del user["luck_override"]
                 description = "🎲 Luck override removed"
@@ -28,7 +26,6 @@ class SetLuckCommand(commands.Cog):
                 color = discord.Color.red()
                 
         elif value == 0:
-            # Set to personal max luck (respecting user's achievement)
             user["luck_multi"] = personal_max
             if "luck_override" in user:
                 del user["luck_override"]
@@ -36,7 +33,6 @@ class SetLuckCommand(commands.Cog):
             color = discord.Color.green()
             
         else:
-            # Set effective final luck override
             override_value = float(value)
             
             if override_value > personal_max:
@@ -50,14 +46,12 @@ class SetLuckCommand(commands.Cog):
         
         await save_user_data(user_id, user)
         
-        # Create response embed
         embed = discord.Embed(
             title="🍀 Luck Configuration",
             description=description,
             color=color
         )
         
-        # Show current max luck
         embed.add_field(
             name="Max Luck", 
             value=f"**{personal_max:.2f}**", 

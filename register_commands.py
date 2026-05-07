@@ -18,6 +18,13 @@ CONTEXTS = [0, 1, 2]
 # --- COMMANDS LIST ---
 commands = [
     {
+        "name": "autoroll",
+        "type": 1,
+        "description": "Toggle background rolling",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS
+    },
+    {
         "name": "pixel",
         "type": 1,
         "description": "Generate a 256x256 image of randomly-colored pixels",
@@ -313,6 +320,13 @@ commands = [
     {
         "name": "Analyze Image",
         "type": 3,  # 3 = MESSAGE CONTEXT MENU
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS
+    },
+    {
+        "name": "safety",
+        "type": 1,
+        "description": "🔒 Owner control panel",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS
     }

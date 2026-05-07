@@ -31,7 +31,6 @@ class HelpView(discord.ui.View):
             self.update_buttons()
             await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
 
-    # A decorative button just to show page number, disabled by default
     @discord.ui.button(label="Page 1/1", style=discord.ButtonStyle.secondary, disabled=True)
     async def page_counter(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
@@ -42,21 +41,16 @@ class HelpCommand(commands.Cog):
 
     @app_commands.command(name="help", description="Get a list of available commands")
     async def help(self, interaction: discord.Interaction):
-        # 1. Gather all commands
         commands_list = []
         for cmd in self.bot.tree.get_commands():
-            # Check if it's a context menu command or slash command
-            # type 1 is Chat Input (Slash Command)
             if hasattr(cmd, 'type') and cmd.type.value != 1:
                 continue
                 
             desc = cmd.description or "No description provided."
             commands_list.append(f"``/{cmd.name}`` - {desc}")
 
-        # 2. Sort alphabetically
         commands_list.sort()
 
-        # 3. Paginate (10 per page)
         per_page = 10
         chunks = [commands_list[i:i + per_page] for i in range(0, len(commands_list), per_page)]
 
@@ -64,7 +58,6 @@ class HelpCommand(commands.Cog):
             await interaction.response.send_message("⚠️ No commands found.", ephemeral=True)
             return
 
-        # 4. Create Embeds for each page
         embeds = []
         for i, chunk in enumerate(chunks):
             embed = discord.Embed(
@@ -72,12 +65,10 @@ class HelpCommand(commands.Cog):
                 description="Here are all available commands:",
                 color=discord.Color.blurple()
             )
-            # Join the list of strings with newlines
             embed.description += "\n\n" + "\n".join(chunk)
             embed.set_footer(text=f"Page {i+1}/{len(chunks)} • Total Commands: {len(commands_list)}")
             embeds.append(embed)
 
-        # 5. Send DM
         try:
             view = HelpView(embeds) if len(embeds) > 1 else None
             await interaction.user.send(embed=embeds[0], view=view)

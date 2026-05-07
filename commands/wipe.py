@@ -14,14 +14,12 @@ class WipeCommand(commands.Cog):
         user_id = str(interaction.user.id)
         
         if is_private:
-            # handles BOTH User DMs and Group DMs
             success = await db.clear_conversation_history(user_id=user_id)
             if success:
                 await interaction.response.send_message("🧹 This DM history has been cleared.", ephemeral=True)
             else:
                 await interaction.response.send_message("ℹ️ You have no history to clear here.", ephemeral=True)
         else:
-            # Server Logic
             if not interaction.user.guild_permissions.administrator:
                 await interaction.response.send_message("⚠️ Only admins can clear server history.", ephemeral=True)
                 return

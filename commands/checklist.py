@@ -31,10 +31,8 @@ class ChecklistView(discord.ui.View):
             lines.append(f"{mark} {name}")
         embed.description = "\n".join(lines) if lines else "No rarities defined."
         
-        # We can calculate checklist bonus roughly here or need to pass it in.
-        # Ideally, calculate from self.discovered count to be sync
         count = sum(1 for v in self.discovered.values() if v)
-        bonus_mult = 1.0 + (0.03 * count) # Hardcoded constant from utils to avoid async import
+        bonus_mult = 1.0 + (0.03 * count)
         
         embed.set_footer(text=f"Discovered: {count}/{self.total} • Bonus: x{bonus_mult:.3f} 🍀")
         return embed
@@ -63,11 +61,9 @@ class ChecklistCommand(commands.Cog):
     @app_commands.command(name="checklist", description="View how many rarities you've discovered so far")
     async def checklist(self, interaction: discord.Interaction):
         uid = str(interaction.user.id)
-        # Fetch data asynchronously HERE
         user = await ensure_user(uid)
         discovered = user.get("discovered", {})
         
-        # Pass data synchronously to View
         view = ChecklistView(uid, discovered)
         embed = view.format_page_embed()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)

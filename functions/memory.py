@@ -4,11 +4,10 @@ import os
 import numpy as np
 from typing import List, Dict, Optional
 from datetime import datetime
-
+# NOTE: Due to the e2-micro's lack of RAM, memories are currently DISABLED (sentence-transformers not installed)
 try:
-    from sentence_transformer import SentenceTransformer # disabled for x10 faster startup
+    #from sentence_transformers import SentenceTransformer
     HAS_EMBEDDINGS = False
-    # Load a lightweight, high-performance local model
     print("⏳ Loading Embedding Model (all-MiniLM-L6-v2)...")
     #embedder = SentenceTransformer('all-MiniLM-L6-v2')
     print("✅ Embedding Model Loaded.")

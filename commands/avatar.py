@@ -10,11 +10,8 @@ class AvatarCommand(commands.Cog):
     @app_commands.command(name="avatar", description="Get someone's avatar")
     @app_commands.describe(user="The user whose avatar you want")
     async def avatar(self, interaction: discord.Interaction, user: discord.User = None):
-        # In Group Chats/DMs, input is discord.User. In servers, it might be Member.
-        # We default to interaction.user if no argument is provided.
         target = user or interaction.user
         
-        # Get the highest resolution avatar url
         avatar_url = target.display_avatar.url
 
         embed = discord.Embed(
@@ -23,7 +20,6 @@ class AvatarCommand(commands.Cog):
         )
         embed.set_image(url=avatar_url)
         
-        # Add a download link button
         view = discord.ui.View()
         button = discord.ui.Button(label="Download", url=target.display_avatar.url, style=discord.ButtonStyle.link)
         view.add_item(button)

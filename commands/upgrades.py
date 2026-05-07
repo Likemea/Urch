@@ -105,14 +105,12 @@ class UpgradeView(discord.ui.View):
                 ephemeral=True
             )
 
-        # Consumes items (updates inventory in DB)
         success = await consume_requirements(self.user_id, reqs)
         if not success:
             return await interaction.response.send_message("Unexpected error consuming items.", ephemeral=True)
 
-        # Update local user object then save it to DB
         cat_upgs[key] = next_tier
-        await save_user_data(self.user_id, user) # FIX: Passed arguments
+        await save_user_data(self.user_id, user)
 
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
         
@@ -150,8 +148,8 @@ class UpgradeView(discord.ui.View):
             if not reqs:
                 break
             
-            # Check if we can afford cumulative cost + this tier
-            # We need a temp cost dict to check against
+            # check if we can afford cumulative cost + this tier
+            # we need a temp cost dict to check against
             temp_reqs = total_cost.copy()
             for item, amount in reqs.items():
                 temp_reqs[item] = temp_reqs.get(item, 0) + amount
@@ -160,7 +158,7 @@ class UpgradeView(discord.ui.View):
             if not ok:
                 break
                 
-            # If affordable, commit to total cost
+            # if affordable, commit to total cost
             total_cost = temp_reqs
             tiers_bought += 1
     
@@ -178,7 +176,7 @@ class UpgradeView(discord.ui.View):
             )
     
         cat_upgs[key] = current_tier + tiers_bought
-        await save_user_data(self.user_id, user) # FIX: Passed arguments
+        await save_user_data(self.user_id, user)
     
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
 

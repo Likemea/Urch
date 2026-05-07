@@ -13,7 +13,6 @@ class FilterCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Processing images blocks the main thread, so we run it in an executor
     def process_image(self, image_bytes: bytes, filter_type: str) -> io.BytesIO:
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
@@ -65,15 +64,12 @@ class FilterCommand(commands.Cog):
         
         target_user = user or interaction.user
         
-        # Download the avatar
         async with aiohttp.ClientSession() as session:
             async with session.get(target_user.display_avatar.url) as response:
                 if response.status != 200:
                     return await interaction.followup.send('Could not download avatar.')
                 data = await response.read()
 
-        # Run the image processing in a separate thread to prevent bot lag
-        # This is crucial for complex filters or large images
         loop = asyncio.get_running_loop()
         processed_buffer = await loop.run_in_executor(
             None, 

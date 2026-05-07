@@ -11,7 +11,7 @@ class InventoryView(discord.ui.View):
     def __init__(self, user_id: str, items: list[tuple[str, int]]):
         super().__init__(timeout=120)
         self.user_id = str(user_id)
-        self.items = items  # list of (rarity, count)
+        self.items = items
         self.page = 0
         self.items_per_page = 10
         self.update_buttons()

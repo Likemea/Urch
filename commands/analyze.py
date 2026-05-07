@@ -66,7 +66,6 @@ class AnalyzeCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         
-        # Manually register Context Menu
         self.ctx_menu = app_commands.ContextMenu(
             name="Analyze Image",
             callback=self.analyze_context

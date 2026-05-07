@@ -8,7 +8,6 @@ import io
 import aiohttp
 import asyncio
 
-# Logic separated for reusability
 async def process_ocr_from_url(url: str, interaction: Interaction, loop: asyncio.AbstractEventLoop):    
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
@@ -39,7 +38,6 @@ class OCRCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         
-        # Manually register the Context Menu here
         self.ctx_menu = app_commands.ContextMenu(
             name="OCR",
             callback=self.ocr_context
@@ -47,7 +45,6 @@ class OCRCommand(commands.Cog):
         self.bot.tree.add_command(self.ctx_menu)
 
     async def cog_unload(self):
-        # Cleanup when cog is unloaded/reloaded
         self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
     # -----------------------------------------------------

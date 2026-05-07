@@ -5,7 +5,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-# Import wrappers from utils (which are now async)
 from utils import (
     get_user_ai_params, set_user_ai_param, MODEL_LIST,
     get_user_personas, add_new_persona, delete_user_persona, 
@@ -29,7 +28,6 @@ class SettingsCommand(commands.Cog):
             await self.edit_settings(interaction)
 
     async def view_settings(self, interaction: discord.Interaction):
-        # Await the async function
         user_params = await get_user_ai_params(str(interaction.user.id))
         
         params_display = []
@@ -67,7 +65,6 @@ class MainSettingsView(discord.ui.View):
 
     @discord.ui.button(label="Personas", style=discord.ButtonStyle.primary, emoji="🎭")
     async def personas_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Fetch data asynchronously BEFORE initializing the view
         personas, active_name = await get_user_personas(self.user_id)
         view = PersonasView(self.user_id, self.bot, self, personas, active_name)
         await view.refresh_embed(interaction)
@@ -126,9 +123,6 @@ class MemoryBrowserView(discord.ui.View):
         self.page = 0
         self.memories = []
         
-        # Initial load might be synchronous if memory_manager is sync. 
-        # If memory_manager uses SQL now, we need to refactor. 
-        # Assuming memory_manager is still sync or handles its own async loop for now based on provided files.
         self.load_data()
         self.rebuild_components()
 
@@ -138,7 +132,6 @@ class MemoryBrowserView(discord.ui.View):
 
     def rebuild_components(self):
         self.clear_items()
-        # Ensure data is loaded (if pagination changes)
         
         ITEMS_PER_PAGE = 10
         total_pages = (len(self.memories) - 1) // ITEMS_PER_PAGE + 1
@@ -179,7 +172,6 @@ class MemoryBrowserView(discord.ui.View):
         self.add_item(back_btn)
 
     async def refresh_embed(self, interaction: discord.Interaction):
-        # Reload data in case of changes
         self.load_data()
         self.rebuild_components()
         
@@ -401,8 +393,6 @@ class PersonaSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         selected_name = self.values[0]
         if await equip_user_persona(self.user_id, selected_name):
-             # We can't access parent view easily to call update, so we create a new one
-             # But we need data first
              personas, active_name = await get_user_personas(self.user_id)
              view = PersonasView(self.user_id, interaction.client, None, personas, active_name)
              await view.refresh_embed(interaction, msg=f"✅ Equipped **{selected_name}**")
@@ -416,7 +406,6 @@ class PersonasView(discord.ui.View):
         self.bot = bot
         self.parent_view = parent_view
         
-        # Build components immediately with provided data
         self.rebuild_components(personas, active_name)
 
     def rebuild_components(self, personas, active_name):
@@ -583,7 +572,6 @@ class AdvancedSettingsView(discord.ui.View):
         self.user_id = user_id
         self.bot = bot
         
-        # Init with passed params to avoid async calls in __init__
         self.add_item(ModelSelect(user_id, params.get("model", "Auto")))
         self.add_item(ReasoningSelect(user_id, params.get("reasoning", "Auto")))
         
@@ -609,13 +597,9 @@ class AdvancedSettingsView(discord.ui.View):
         
         embed = discord.Embed(title="🔧 Advanced Settings", description=desc, color=discord.Color.dark_grey())
         
-        # We should also rebuild selects to reflect changes, but for simplicity here we just edit embed.
-        # Ideally: self.clear_items(), re-add Selects with new defaults, then edit view.
-        
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def numeric_callback(self, interaction: discord.Interaction):
-        # Pass current values to Modal
         params = await get_user_ai_params(self.user_id)
         await interaction.response.send_modal(AdvancedParamsModal(self.user_id, self, params))
 

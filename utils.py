@@ -7,53 +7,50 @@ import asyncio
 from database import db
 from datetime import datetime
 from database import DB_PATH
-from upgrades import get_upgrade_effect as calc_upgrade_effect # Import logic
+from upgrades import get_upgrade_effect as calc_upgrade_effect
 from raritylist import RARITIES
+import discord
 
-# Map IDs to Full Names
+LOG_GUILD_ID = 1444003568263630900
+LOG_CHANNEL_NAME = "rare-rolls"
+
 RARITY_ID_TO_NAME = {r[2]: r[0] for r in RARITIES}
-# Set of Full Names for fast checking
 RARITY_NAME_SET = {r[0] for r in RARITIES}
 
 def resolve_item_key(key: str) -> Tuple[str, str]:
     """
-    Determines if a key is a Rarity (Inventory) or Currency.
-    Returns (db_key, category_type).
-    category_type is 'inventory' or 'currency'.
+    determines if a key is a rarity or currency
+    returns (db_key, category_type)
+    category_type is 'inventory' or 'currency'
     """
-    # 1. Is it a Rarity ID? (e.g., "common") -> Map to Full Name
     if key in RARITY_ID_TO_NAME:
         return RARITY_ID_TO_NAME[key], "inventory"
     
-    # 2. Is it already a Full Rarity Name? (e.g., "Common ⚪...") -> Use as is
     if key in RARITY_NAME_SET:
         return key, "inventory"
         
-    # 3. Otherwise, assume it's a Currency (e.g., "clovers")
     return key, "currency"
 
-# Constants
 LUCK_GROWTH_PER_ROLL = 0.01
 CHECKLIST_BONUS = 0.03
 DM_HISTORY_LIMIT = 10
 SERVER_HISTORY_LIMIT = 10
 
-# Model list
 MODEL_LIST = {
     "1": {"id": "llama-3.1-8b-instant", "disp": "⚡ Fast"},
     "2": {"id": "openai/gpt-oss-20b", "disp": "⚡🧠 Thinking (Fast)"},
     "3": {"id": "openai/gpt-oss-120b", "disp": "🧠 Thinking"},    
-    "4": {"id": "moonshotai/kimi-k2-instruct-0905", "disp": "🎭 Creative"},
+    "4": {"id": "moonshotai/kimi-k2-instruct-0905", "disp": "🎭 Smartest"},
     "5": {"id": "llama-3.3-70b-versatile", "disp": "🔘 All-rounder"},
-    "6": {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "disp": "⚡👁 Vision (Fast)"},
-    "7": {"id": "meta-llama/llama-4-maverick-17b-128e-instruct", "disp": "👁 Vision"}
+    "6": {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "disp": "👁 Vision"},
+    "7": {"id": "qwen/qwen3-32b", "disp": "📛 Qwen"}
 }
 
 DEFAULT_AI_PARAMS = {
     "max_completion_tokens": 500,
     "temperature": 0.75,
     "top_p": 1,
-    "model": "Auto",
+    "model": "Auto", 
     "reasoning": "Auto",
     "user_persona": "",
     "ai_persona": "",
@@ -65,12 +62,12 @@ DEFAULT_AI_PARAMS = {
 # --- User Data Functions ---
 
 async def ensure_user(user_id: str) -> Dict[str, any]:
-    """Ensure user exists and return their data"""
+    """ensure user exists and return their data"""
     await db.ensure_user(user_id)
     return await db.get_user_data(user_id) or {}
 
 async def get_user_data(user_id: str) -> Dict[str, any]:
-    """Get user data (for direct access - use ensure_user for creation)"""
+    """get user data (for direct access - use ensure_user for creation)"""
     return await db.get_user_data(user_id) or {}
 
 async def save_user_data(user_id: str, data: Dict[str, any]):
@@ -82,11 +79,9 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
         user = await db.get_user_data(user_id)
         if not user: return
 
-        # Rarity check
         if new_rarity not in RARITY_NAME_SET:
-            pass # Should theoretically be in set if coming from roll_rarity
+            pass
 
-        # Highscore Logic
         rarity_names = [r[0] for r in RARITIES]
         current_high = user.get('highscore')
         update_high = False
@@ -104,18 +99,14 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
             user['highscore'] = new_rarity
 
         if action == "keep":
-            # Add to inventory (Rarity)
             inventory = user.setdefault("inventory", {})
             inventory[new_rarity] = inventory.get(new_rarity, 0) + 1
             
-            # Mark Discovered
             discovered = user.setdefault("discovered", {})
             discovered[new_rarity] = True
             
-            # Stats
             user['roll_count'] = user.get('roll_count', 0) + 1
             
-            # Luck Growth
             current_luck = user.get('luck_multi', 1.0)
             new_luck = current_luck + LUCK_GROWTH_PER_ROLL
             user['luck_multi'] = round(new_luck, 3)
@@ -123,7 +114,6 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
             if new_luck > user.get('max_luck', 1.0):
                 user['max_luck'] = round(new_luck, 3)
                 
-            # Clover Logic
             bonuses = await get_upgrade_effect(user_id, user_obj=user)
             effective_luck = (new_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
             
@@ -136,7 +126,6 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
                  
                  if expected > already:
                      diff = expected - already
-                     # Add Clovers (Currency)
                      currencies = user.setdefault("currencies", {})
                      currencies["clovers"] = currencies.get("clovers", 0) + diff
                      user['clovers_earned'] = expected
@@ -148,7 +137,7 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
 # ───────────────────────────────
 
 async def currency_add(user_id: str, item_key: str, amount: int = 1):
-    """Smart add: detects if item is currency or inventory based on key"""
+    """detects if item is currency or inventory based on key"""
     async with db.lock_user(user_id):
         user = await db.get_user_data(user_id)
         if not user: return
@@ -159,17 +148,15 @@ async def currency_add(user_id: str, item_key: str, amount: int = 1):
             curr = user.setdefault("currencies", {})
             curr[db_key] = curr.get(db_key, 0) + int(amount)
         else:
-            # Inventory Item
             inv = user.setdefault("inventory", {})
             inv[db_key] = inv.get(db_key, 0) + int(amount)
-            # Auto-discover if adding an item
             disc = user.setdefault("discovered", {})
             disc[db_key] = True
             
         await db.save_user_data(user_id, user)
 
 async def currency_remove(user_id: str, item_key: str, amount: int = 1) -> bool:
-    """Smart remove: checks correct storage location"""
+    """checks correct storage location"""
     async with db.lock_user(user_id):
         user = await db.get_user_data(user_id)
         if not user: return False
@@ -195,7 +182,7 @@ async def currency_remove(user_id: str, item_key: str, amount: int = 1) -> bool:
             return False
 
 async def currency_count(user_id: str, item_key: str) -> int:
-    """Smart count: looks in correct storage location"""
+    """looks in correct storage location"""
     user = await get_user_data(user_id)
     if not user: return 0
     
@@ -207,7 +194,7 @@ async def currency_count(user_id: str, item_key: str) -> int:
         return int(user.get("inventory", {}).get(db_key, 0))
 
 async def has_requirements(user_id: str, requirements: Dict[str, int]) -> Tuple[bool, Dict[str, int]]:
-    """Checks requirements supporting both IDs, Full Names, and Currencies"""
+    """Checks requirements both IDs, Full Names, and Currencies"""
     user = await ensure_user(user_id)
     missing = {}
     
@@ -221,7 +208,7 @@ async def has_requirements(user_id: str, requirements: Dict[str, int]) -> Tuple[
             have = user.get("inventory", {}).get(db_key, 0)
             
         if have < need:
-            missing[db_key] = need - have # Return DB key (Full Name) for display clarity
+            missing[db_key] = need - have
             
     return (len(missing) == 0, missing)
 
@@ -237,7 +224,6 @@ async def consume_requirements(user_id: str, requirements: Dict[str, int]) -> bo
             db_key, category = resolve_item_key(item_key)
             
             if category == "currency":
-                # Direct modify dict ref
                 if "currencies" not in user: user["currencies"] = {}
                 user["currencies"][db_key] -= need
             else:
@@ -248,7 +234,7 @@ async def consume_requirements(user_id: str, requirements: Dict[str, int]) -> bo
         return True
 
 async def get_item_count(user_id: str, item_key: str) -> int:
-    """Wrapper for currency_count to maintain compatibility"""
+    """Wrapper for currency_count"""
     return await currency_count(user_id, item_key)
 
 async def inventory_all_items_sorted(user_id: str, rarities_list: list) -> list:
@@ -260,12 +246,8 @@ async def inventory_all_items_sorted(user_id: str, rarities_list: list) -> list:
     if not user: return []
     inv = user.get("inventory", {})
     
-    # Sort by index in the master RARITIES list
-    # rarities_list[i][0] is the Full Name
     order = {r[0]: idx for idx, r in enumerate(rarities_list)}
     
-    # Only sort items that are actually in the Rarity list (excludes random junk)
-    # If you want to include others at the end, use .get(k, 9999)
     sorted_items = sorted(
         [(k, v) for k, v in inv.items() if k in order],
         key=lambda kv: order.get(kv[0], 9999), 
@@ -285,7 +267,6 @@ async def roll_rarity(user_id: str) -> str:
 
     luck = max(1.0, luck)
     
-    # Unpack for weighted choice
     rarity_names = [r[0] for r in RARITIES]
     base_probs = [r[1] for r in RARITIES]
     total_base = sum(base_probs)
@@ -300,31 +281,167 @@ async def roll_rarity(user_id: str) -> str:
         if luck <= 1.0:
             weight = p
         else:
-            # Power curve for luck
             weight = p * (luck ** (rarity_rank * 1.2))
             
         adjusted_weights.append(weight)
 
     return random.choices(rarity_names, weights=adjusted_weights, k=1)[0]
 
+async def process_autorolls(user_ids: List[str]):
+    """Process one tick of autorolls for all active users"""
+    if not user_ids:
+        return []
+
+    updates = []
+    rare_hits = [] # List of (user_id, rarity_name, one_in, total_luck)
+
+    for user_id in user_ids:
+        user = await db.get_user_data(user_id)
+        if not user: continue
+
+        # Calculate luck and bonuses
+        bonuses = await get_upgrade_effect(user_id, user_obj=user)
+        luck_override = user.get('luck_override')
+        if luck_override is not None:
+            total_luck = float(luck_override)
+        else:
+            base_luck = float(user.get("luck_multi", 1.0))
+            total_luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
+        
+        total_luck = max(1.0, total_luck)
+        
+        # Roll
+        # Autoroll only does ONE roll per tick to stay balanced and keep things light
+        # But wait, the user said "autoroll has the same upgrades and stats as if the user rolled normally"
+        # Normal /roll includes multi_roll.
+        
+        extra_rolls = bonuses.get("multi_roll", 0)
+        num_rolls = 1 + extra_rolls
+        
+        results = []
+        for _ in range(num_rolls):
+            results.append(await roll_rarity(user_id))
+        
+        # Process results
+        roll_count_inc = len(results)
+        new_highscore = user.get("highscore")
+        rarity_order = [r[0] for r in RARITIES]
+        
+        inventory_diff = {}
+        
+        for res in results:
+            inventory_diff[res] = inventory_diff.get(res, 0) + 1
+            
+            # Check highscore
+            if not new_highscore or rarity_order.index(res) > rarity_order.index(new_highscore):
+                new_highscore = res
+            
+            # Check for rare log (meaningful roll)
+            # Logic: one_in >= (total_luck * 100)
+            rarity_data = next((r for r in RARITIES if r[0] == res), None)
+            if rarity_data:
+                weight = rarity_data[1]
+                total_weight = sum(r[1] for r in RARITIES)
+                one_in = total_weight / weight
+                
+                if one_in >= (total_luck * 100):
+                    rare_hits.append((user_id, res, one_in, total_luck))
+
+        # Luck growth
+        current_luck = user.get('luck_multi', 1.0)
+        new_luck = round(current_luck + (LUCK_GROWTH_PER_ROLL * roll_count_inc), 3)
+        max_luck = max(user.get('max_luck', 1.0), new_luck)
+        
+        # Clovers
+        clovers_earned = user.get('clovers_earned', 0)
+        currency_diff = {}
+        if total_luck >= 1000:
+            every = bonuses.get("clover_every", 10)
+            total_rolls_after = user.get('roll_count', 0) + roll_count_inc
+            expected = int((total_rolls_after // every) * user.get('clover_multi', 1.0))
+            if expected > clovers_earned:
+                diff = expected - clovers_earned
+                currency_diff["clovers"] = diff
+                clovers_earned = expected
+
+        updates.append({
+            "user_id": user_id,
+            "roll_count": user.get('roll_count', 0) + roll_count_inc,
+            "highscore": new_highscore,
+            "luck_multi": new_luck,
+            "max_luck": max_luck,
+            "clovers_earned": clovers_earned,
+            "inventory_diff": inventory_diff,
+            "currency_diff": currency_diff
+        })
+
+    if updates:
+        await db.bulk_update_autoroll(updates)
+    
+    return rare_hits
+
+async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
+    try:
+        guild = bot.get_guild(LOG_GUILD_ID)
+        if not guild: return
+        channel = discord.utils.get(guild.text_channels, name=LOG_CHANNEL_NAME)
+        if not channel: return
+            
+        if one_in >= (total_luck * 5000):
+            title_prefix = "♾ *OMNIVERSAL MILESTONE!!!*"
+            color = discord.Color.dark_theme()
+        elif one_in >= (total_luck * 2500):
+            title_prefix = "💠 *MULTIVERSAL MILESTONE!!*"
+            color = discord.Color.purple()
+        elif one_in >= (total_luck * 1000):
+            title_prefix = "🪐 *UNIVERSAL MILESTONE!*"
+            color = discord.Color.dark_purple()
+        elif one_in >= (total_luck * 500):
+            title_prefix = "🌌 Galactic Milestone!!!"
+            color = discord.Color.dark_blue()
+        elif one_in >= (total_luck * 250):
+            title_prefix = "🌟 Stellar Milestone!!"
+            color = discord.Color.blue()
+        elif one_in >= (total_luck * 100):
+            title_prefix = "🌍 Planetary Milestone!"
+            color = discord.Color.green()
+        else:
+            title_prefix = "🚨 Rare Roll!"
+            color = discord.Color.gold()
+
+        embed = discord.Embed(
+            title=f"{title_prefix}",
+            description=f"**{user.name}** just rolled **{rarity_name}**!",
+            color=color
+        )
+        embed.add_field(name="Luck", value=f"{total_luck:.2f}", inline=True)
+        embed.add_field(name="Rarity", value=f"1 in {one_in:,.0f}", inline=True)
+        embed.set_thumbnail(url=user.display_avatar.url)
+        embed.timestamp = discord.utils.utcnow()
+
+        webhooks = await channel.webhooks()
+        webhook = discord.utils.get(webhooks, name="Rarity Logger")
+        if not webhook:
+            webhook = await channel.create_webhook(name="Rarity Logger")
+            
+        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=bot.user.display_avatar.url)
+        
+    except Exception as e:
+        print(f"Failed to log rare roll: {e}")
+
 # --- Upgrade Functions ---
 
 async def get_upgrade_effect(user_id: str, user_obj: dict = None) -> Dict[str, float]:
-    # 1. Ensure we have the user object
     if user_obj is None:
         user_obj = await get_user_data(user_id)
     
     if not user_obj:
-        # Return default structure if user doesn't exist
         return calc_upgrade_effect(user_id, {}, 1.0)
 
-    # 2. Calculate the checklist bonus locally (avoids circular import)
-    # Uses the constant CHECKLIST_BONUS already defined in utils.py
     discovered = user_obj.get("discovered", {}) or {}
     count = sum(1 for v in discovered.values() if v)
     checklist_multiplier = 1.0 + (CHECKLIST_BONUS * count)
 
-    # 3. Pass both the object AND the multiplier to the logic function
     return calc_upgrade_effect(user_id, user_obj, checklist_multiplier)
 
 async def get_checklist_bonus(user_id: str) -> Dict[str, float]:
@@ -420,7 +537,6 @@ async def check_reaction_permission(user_id, is_dm, guild_id, bot_msg_id, reacto
 async def get_context_for_message(user_id, is_dm, guild_id, message_id):
     return await db.get_context_for_message(user_id, guild_id, message_id)
 
-# Export database instance
 __all__ = [
     'db', 'MODEL_LIST', 'DEFAULT_AI_PARAMS', 'LUCK_GROWTH_PER_ROLL', 'CHECKLIST_BONUS',
     'ensure_user', 'get_user_data', 'save_user_data', 'create_backup',

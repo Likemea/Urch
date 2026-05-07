@@ -4,7 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 from typing import List
 
-from utils import get_upgrade_effect # We still need this for the math
+from utils import get_upgrade_effect
 from database import db
 from raritylist import RARITIES
 
@@ -18,7 +18,7 @@ class LeaderboardView(discord.ui.View):
         self.update_buttons_sync()
 
     def update_buttons_sync(self):
-        """Updates just the visual style of category buttons."""
+        """Updates just the visual style of category buttons"""
         for child in self.children:
             if hasattr(child, 'label') and child.label:
                 if "Most Luck" in child.label:
@@ -29,7 +29,7 @@ class LeaderboardView(discord.ui.View):
                     child.style = discord.ButtonStyle.success if self.category == "rarity" else discord.ButtonStyle.primary
 
     async def update_buttons_async(self):
-        """Updates enabled/disabled state of pagination buttons."""
+        """Updates enabled/disabled state of pagination buttons"""
         max_pages = await self.get_max_pages()
         for child in self.children:
             if getattr(child, "label", "") == "◀":
@@ -78,46 +78,37 @@ class LeaderboardView(discord.ui.View):
 
     async def get_leaderboard_data(self) -> List[tuple]:
         """
-        OPTIMIZED: Fetches all data in 3 bulk queries instead of N+1 queries.
-        Returns sorted list of (user_id, value).
+        Fetches all data in 3 bulk queries instead of N+1 queries
+        Returns sorted list of (user_id, value)
         """
         leaderboard_data = []
         rarity_map = {name: i for i, (name, _, _) in enumerate(RARITIES)}
         
-        # 1. Bulk Fetch: User Stats (Rolls, Luck, Highscore)
         await db._check_conn()
         async with db.conn.execute("SELECT user_id, roll_count, highscore, luck_multi, max_luck FROM users") as cursor:
             users_rows = await cursor.fetchall()
-            # Map: user_id -> {roll_count, highscore, luck_multi, max_luck}
             users_map = {r[0]: {'roll_count': r[1], 'highscore': r[2], 'luck_multi': r[3], 'max_luck': r[4]} for r in users_rows}
             
-        # 2. Bulk Fetch: Upgrades
         async with db.conn.execute("SELECT user_id, category, upgrade_key, tier FROM user_upgrades") as cursor:
             upgrades_rows = await cursor.fetchall()
-            # Map: user_id -> {category: {key: tier}}
             upgrades_map = {}
             for uid, cat, key, tier in upgrades_rows:
                 if uid not in upgrades_map:
                     upgrades_map[uid] = {'luck': {}, 'roll': {}, 'clover': {}}
                 upgrades_map[uid][cat][key] = tier
         
-        # 3. Bulk Fetch: Discovered Items (Inventory)
-        # We only fetch discovered items to calculate the checklist bonus efficiently
         async with db.conn.execute("SELECT user_id, item_name FROM user_inventory WHERE discovered = 1") as cursor:
             inv_rows = await cursor.fetchall()
-            # Map: user_id -> {item_name: True} (Mimicking the 'discovered' dict structure)
             discovered_map = {}
             for uid, item in inv_rows:
                 if uid not in discovered_map:
                     discovered_map[uid] = {}
                 discovered_map[uid][item] = True
 
-        # Process data in memory (Very fast)
         for user_id, data in users_map.items():
             val = 0
             
             if self.category == "luck":
-                # Construct a lightweight user_obj for the helper function
                 user_obj = {
                     "upgrades": upgrades_map.get(user_id, {}),
                     "discovered": discovered_map.get(user_id, {}),
@@ -125,7 +116,6 @@ class LeaderboardView(discord.ui.View):
                     "max_luck": data['max_luck']
                 }
                 
-                # Calculate total luck using the existing utility
                 bonuses = await get_upgrade_effect(user_id, user_obj=user_obj)
                 base = data['luck_multi']
                 total_luck = (base + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
@@ -198,7 +188,7 @@ class LeaderboardCommand(commands.Cog):
 
     @app_commands.command(name="leaderboard", description="View the top players")
     async def leaderboard(self, interaction: discord.Interaction):
-        await interaction.response.defer() # Good practice for DB heavy commands
+        await interaction.response.defer()
         view = LeaderboardView(self.bot)
         await view.update_buttons_async() 
         embed = await view.format_page()

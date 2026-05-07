@@ -39,9 +39,18 @@ class Database:
                 clover_multi REAL DEFAULT 1.0,
                 clover_every INTEGER DEFAULT 10,
                 clovers_earned INTEGER DEFAULT 0,
-                luck_override REAL
+                luck_override REAL,
+                autoroll_active BOOLEAN DEFAULT 0
             )
         """)
+        
+        # Add autoroll_active column if it doesn't exist (for existing databases)
+        try:
+            await self.conn.execute("ALTER TABLE users ADD COLUMN autoroll_active BOOLEAN DEFAULT 0")
+            await self.conn.commit()
+        except aiosqlite.OperationalError:
+            # Column already exists
+            pass
         
         # User inventory table
         await self.conn.execute("""
@@ -248,6 +257,68 @@ class Database:
             except Exception as e:
                 await self.conn.rollback()
                 raise e
+
+    async def get_active_rollers(self) -> List[str]:
+        """Fetch all user IDs with autoroll enabled"""
+        await self._check_conn()
+        async with self.conn.execute("SELECT user_id FROM users WHERE autoroll_active = 1") as cursor:
+            return [row["user_id"] async for row in cursor]
+
+    async def set_autoroll_status(self, user_id: str, active: bool):
+        """Enable or disable autoroll for a user"""
+        await self._check_conn()
+        async with self._lock:
+            await self.conn.execute("UPDATE users SET autoroll_active = ? WHERE user_id = ?", (1 if active else 0, user_id))
+            await self.conn.commit()
+
+    async def bulk_update_autoroll(self, updates: List[Dict[str, Any]]):
+        """Bulk update user data for autoroll processing"""
+        if not updates:
+            return
+        await self._check_conn()
+        async with self._lock:
+            try:
+                await self.conn.execute("BEGIN TRANSACTION")
+                for up in updates:
+                    user_id = up["user_id"]
+                    # Update users table
+                    await self.conn.execute("""
+                        UPDATE users SET 
+                            roll_count = ?, 
+                            highscore = ?, 
+                            luck_multi = ?, 
+                            max_luck = ?,
+                            clovers_earned = ?
+                        WHERE user_id = ?
+                    """, (
+                        up["roll_count"], up["highscore"], up["luck_multi"], 
+                        up["max_luck"], up["clovers_earned"], user_id
+                    ))
+                    
+                    # Update inventory
+                    for item_name, quantity_diff in up.get("inventory_diff", {}).items():
+                        await self.conn.execute("""
+                            INSERT INTO user_inventory (user_id, item_name, quantity, discovered)
+                            VALUES (?, ?, ?, 1)
+                            ON CONFLICT(user_id, item_name) DO UPDATE SET
+                            quantity = quantity + excluded.quantity,
+                            discovered = 1
+                        """, (user_id, item_name, quantity_diff))
+                    
+                    # Update currencies
+                    for curr_type, amount_diff in up.get("currency_diff", {}).items():
+                        await self.conn.execute("""
+                            INSERT INTO user_currencies (user_id, currency_type, amount)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(user_id, currency_type) DO UPDATE SET
+                            amount = amount + excluded.amount
+                        """, (user_id, curr_type, amount_diff))
+                        
+                await self.conn.commit()
+            except Exception as e:
+                await self.conn.rollback()
+                logger.error(f"Bulk update failed: {e}")
+                raise e
     
     # --- User Parameters ---
     
@@ -376,7 +447,7 @@ class Database:
         await self._check_conn()
         async with self._lock:
             await self.conn.execute("UPDATE user_personas SET user_persona=?, ai_persona=? WHERE user_id=? AND persona_name=?", (user_p, ai_p, user_id, name))
-            # Also update if it is the currently active one
+            # Also update if its the currently active one
             await self.conn.execute("""
                 UPDATE user_params SET user_persona=?, ai_persona=? 
                 WHERE user_id=? AND active_persona=?
@@ -400,13 +471,28 @@ class Database:
             """, (user_id, guild_id, role, content, timestamp, msg_ids_json, author_id))
             await self.conn.commit()
     
-    async def append_message(self, user_id, guild_id, role, content, message_ids=None, author_id=None):
+    async def append_message(self, user_id, guild_id, role, content, message_ids=None, author_id=None, max_history=20):
         await self._check_conn()
         async with self._lock:
             await self.conn.execute("""
                 INSERT INTO conversation_history (user_id, guild_id, role, content, timestamp, message_ids, author_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (user_id, guild_id, role, content, datetime.now().isoformat(), json.dumps(message_ids) if message_ids else None, author_id))
+            
+            # --- Prune old messages beyond max_history ---
+            if user_id:
+                await self.conn.execute("""
+                    DELETE FROM conversation_history WHERE id NOT IN (
+                        SELECT id FROM conversation_history WHERE user_id = ? ORDER BY id DESC LIMIT ?
+                    ) AND user_id = ?
+                """, (user_id, max_history, user_id))
+            elif guild_id:
+                await self.conn.execute("""
+                    DELETE FROM conversation_history WHERE id NOT IN (
+                        SELECT id FROM conversation_history WHERE guild_id = ? ORDER BY id DESC LIMIT ?
+                    ) AND guild_id = ?
+                """, (guild_id, max_history, guild_id))
+            
             await self.conn.commit()
 
     async def get_messages_for_context(self, user_id=None, guild_id=None, limit=10, include_internal=False, read_only=True):
@@ -461,21 +547,21 @@ class Database:
         if not user_id and not guild_id:
             return False
             
+        await self._check_conn()
         async with self._lock:
-            async with aiosqlite.connect(self.db_path) as db:
-                try:
-                    if user_id:
-                        cursor = await db.execute("DELETE FROM conversation_history WHERE user_id = ?", (user_id,))
-                    elif guild_id:
-                        cursor = await db.execute("DELETE FROM conversation_history WHERE guild_id = ?", (guild_id,))
-                    
-                    affected = cursor.rowcount
-                    await db.commit()
-                    return affected > 0
-                except Exception as e:
-                    await db.rollback()
-                    logger.error(f"Error clearing conversation history: {e}")
-                    return False
+            try:
+                if user_id:
+                    cursor = await self.conn.execute("DELETE FROM conversation_history WHERE user_id = ?", (user_id,))
+                elif guild_id:
+                    cursor = await self.conn.execute("DELETE FROM conversation_history WHERE guild_id = ?", (guild_id,))
+                
+                affected = cursor.rowcount
+                await self.conn.commit()
+                return affected > 0
+            except Exception as e:
+                await self.conn.rollback()
+                logger.error(f"Error clearing conversation history: {e}")
+                return False
         
     async def check_reaction_permission(self, user_id, guild_id, bot_message_id, reactor_id):
         await self._check_conn()
@@ -521,6 +607,28 @@ class Database:
         
         async with self.conn.execute(sql, params) as cur:
             return [dict(row) for row in await cur.fetchall()]
+        
+    async def get_conversation_stats(self) -> Dict[str, Any]:
+        """Get conversation history statistics for the /safety dashboard"""
+        await self._check_conn()
+        stats = {}
+        async with self.conn.execute("SELECT COUNT(*) as total FROM conversation_history") as cur:
+            row = await cur.fetchone()
+            stats["total_rows"] = row[0] if row else 0
+        
+        async with self.conn.execute("""
+            SELECT guild_id, COUNT(*) as cnt FROM conversation_history 
+            WHERE guild_id IS NOT NULL GROUP BY guild_id ORDER BY cnt DESC LIMIT 10
+        """) as cur:
+            stats["top_guilds"] = [(row[0], row[1]) async for row in cur]
+        
+        async with self.conn.execute("""
+            SELECT user_id, COUNT(*) as cnt FROM conversation_history 
+            WHERE user_id IS NOT NULL GROUP BY user_id ORDER BY cnt DESC LIMIT 10
+        """) as cur:
+            stats["top_users"] = [(row[0], row[1]) async for row in cur]
+        
+        return stats
         
     async def close(self):
         if self.conn:

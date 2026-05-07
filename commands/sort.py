@@ -1,11 +1,11 @@
 # Urch/commands/sort.py
 import io
 import random
-import asyncio # Added
+import asyncio
 
 import discord
 import matplotlib
-matplotlib.use('Agg') # Set backend to Agg for server-side plotting (no GUI needed)
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from discord import app_commands
 from discord.ext import commands
@@ -41,8 +41,6 @@ class SortCommand(commands.Cog):
         
         await interaction.response.defer(thinking=True)
         
-        # Dictionary mapping algorithm names to their functions
-        # Note: These are now synchronous functions (not async)
         sort_functions = {
             "bubble": self.visualize_bubble_sort,
             "selection": self.visualize_selection_sort,
@@ -59,10 +57,8 @@ class SortCommand(commands.Cog):
             await interaction.followup.send(f"Unknown algorithm: {algorithm}.", ephemeral=True)
             return
 
-        # Run the heavy processing in a separate thread to prevent blocking the bot
         loop = asyncio.get_running_loop()
         try:
-            # We pass the algorithm function and size to a blocking wrapper
             image_binary = await loop.run_in_executor(
                 None, 
                 self._run_blocking_sort_generation, 
@@ -81,7 +77,7 @@ class SortCommand(commands.Cog):
             await interaction.followup.send(f"An error occurred: {e}")
 
     def _run_blocking_sort_generation(self, sort_func, size, algorithm_name):
-        """Wrapper function to run synchronously in a thread."""
+        """Wrapper function to run synchronously in a thread"""
         try:
             array = [random.randint(1, 100) for _ in range(size)]
             images = sort_func(array.copy())
@@ -89,7 +85,6 @@ class SortCommand(commands.Cog):
             if not images:
                 return None
 
-            # DO NOT use 'with' here. We need to return this open buffer to Discord.
             image_binary = io.BytesIO()
             images[0].save(
                 image_binary, 
@@ -105,7 +100,6 @@ class SortCommand(commands.Cog):
             print(f"Blocking sort generation error: {e}")
             return None
 
-    # --- All helper functions below are now synchronous (def, not async def) ---
 
     def create_image(self, array, algorithm_name):
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -115,19 +109,14 @@ class SortCommand(commands.Cog):
         ax.set_title(f'{algorithm_name} Visualization')
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         
-        # Create buffer
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight')
         plt.close(fig)
         buf.seek(0)
         
-        # Open image and LOAD IT into memory
-        # .load() is critical here. It reads from buf, copies pixels to RAM,
-        # and allows us to close buf safely.
         image = Image.open(buf)
         image.load() 
         
-        # Now we can close the buffer to save RAM before returning
         buf.close() 
         
         return image

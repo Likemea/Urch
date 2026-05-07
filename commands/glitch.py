@@ -76,7 +76,6 @@ class GlitchCommand(commands.Cog):
     def apply_glitch(self, img: Image.Image, intensity: float) -> Image.Image:
         w, h = img.size
         np_img = np.array(img)
-        # 🔹 1. RGB Shift
         if random.random() < 0.8:
             shift_x = int((random.randint(-5, 5) * intensity))
             shift_y = int((random.randint(-3, 3) * intensity))
@@ -84,12 +83,10 @@ class GlitchCommand(commands.Cog):
             g = np_img[:, :, 1]
             b = np.roll(np_img[:, :, 2], shift=(-shift_y, -shift_x), axis=(0, 1))
             np_img = np.stack([r, g, b], axis=2)
-        # 🔹 2. Scanlines
         if random.random() < 0.6:
             scanline = np.zeros_like(np_img)
             scanline[::2] = np_img[::2]
             np_img = (np_img * 0.7 + scanline * 0.3).astype(np.uint8)
-        # 🔹 3. Pixel sort streak
         if random.random() < 0.5 * intensity:
             try:
                 axis = random.choice([0, 1])
@@ -108,7 +105,6 @@ class GlitchCommand(commands.Cog):
                     np_img[start:end, :, :] = strip
             except Exception:
                 pass
-        # 🔹 4. Brightness/contrast pop
         pil_img = Image.fromarray(np_img)
         if random.random() < 0.4:
             enhancer = ImageEnhance.Contrast(pil_img)
@@ -116,7 +112,6 @@ class GlitchCommand(commands.Cog):
         if random.random() < 0.3:
             enhancer = ImageEnhance.Brightness(pil_img)
             pil_img = enhancer.enhance(1 + 0.4 * intensity * random.choice([-1, 1]))
-        # 🔹 5. Noise burst
         if intensity > 0.7 and random.random() < 0.3:
             noise = np.random.randint(0, 256, np_img.shape, dtype=np.uint8)
             mask = np.random.rand(*np_img.shape[:2]) < (0.02 * intensity)

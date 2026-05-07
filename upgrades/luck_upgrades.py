@@ -133,7 +133,7 @@ LUCK_UPGRADES = {
         "description": "Multiplies your luck based on how many rarities you've discovered.\nFormula: `1.0 + (rarities_discovered * 0.001 * tier)`",
         "max_tier": 5,
         "requirements": {
-            1: {"Amazing 📜 (1 in 100,000)": 3, "miner": 5, "unfathomable": 10},
+            1: {"amazing": 3, "miner": 5, "unfathomable": 10},
             2: {"steel": 5, "easy": 5},
             3: {"negus": 5, "redacted": 3},
             4: {"skilled": 5, "supreme": 3},

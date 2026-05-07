@@ -5,11 +5,8 @@ from discord.ext import commands
 from collections import Counter
 import math
 
-from utils import roll_rarity, update_user_data, ensure_user, get_upgrade_effect
+from utils import roll_rarity, update_user_data, ensure_user, get_upgrade_effect, log_rare_roll
 from raritylist import RARITIES
-
-LOG_GUILD_ID = 1444003568263630900
-LOG_CHANNEL_NAME = "rare-rolls"
 
 class ButtonView(discord.ui.View):
     def __init__(self, user_id, rarity, bot):
@@ -48,7 +45,6 @@ class ButtonView(discord.ui.View):
                 all_rolls.append(extra_rarity)
                 await check_and_log_rarity(self.bot, interaction.user, extra_rarity)
 
-        # FIX: Unpack 3 values, discard last 2
         rarity_order = [r[0] for r in RARITIES]
         
         counts = Counter(all_rolls)
@@ -94,10 +90,8 @@ async def check_and_log_rarity(bot, user, rarity_name):
 
         total_luck = max(1.0, total_luck)
 
-        # FIX: Sum index 1 (probability)
         total_weight = sum(r[1] for r in RARITIES)
         
-        # FIX: Find by name at index 0
         rarity_data = next((r for r in RARITIES if r[0] == rarity_name), None)
         
         if not rarity_data: return
@@ -110,55 +104,6 @@ async def check_and_log_rarity(bot, user, rarity_name):
             
     except Exception as e:
         print(f"Error checking rarity log: {e}")
-
-async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
-    try:
-        guild = bot.get_guild(LOG_GUILD_ID)
-        if not guild: return
-        channel = discord.utils.get(guild.text_channels, name=LOG_CHANNEL_NAME)
-        if not channel: return
-            
-        if one_in >= (total_luck * 5000):
-            title_prefix = "♾ *OMNIVERSAL MILESTONE!!!*"
-            color = discord.Color.dark_theme()
-        elif one_in >= (total_luck * 2500):
-            title_prefix = "💠 *MULTIVERSAL MILESTONE!!*"
-            color = discord.Color.purple()
-        elif one_in >= (total_luck * 1000):
-            title_prefix = "🪐 *UNIVERSAL MILESTONE!*"
-            color = discord.Color.dark_purple()
-        elif one_in >= (total_luck * 500):
-            title_prefix = "🌌 Galactic Milestone!!!"
-            color = discord.Color.dark_blue()
-        elif one_in >= (total_luck * 250):
-            title_prefix = "🌟 Stellar Milestone!!"
-            color = discord.Color.blue()
-        elif one_in >= (total_luck * 100):
-            title_prefix = "🌍 Planetary Milestone!"
-            color = discord.Color.green()
-        else:
-            title_prefix = "🚨 Rare Roll!"
-            color = discord.Color.gold()
-
-        embed = discord.Embed(
-            title=f"{title_prefix}",
-            description=f"**{user.name}** just rolled **{rarity_name}**!",
-            color=color
-        )
-        embed.add_field(name="Luck", value=f"{total_luck:.2f}", inline=True)
-        embed.add_field(name="Rarity", value=f"1 in {one_in:,.0f}", inline=True)
-        embed.set_thumbnail(url=user.display_avatar.url)
-        embed.timestamp = discord.utils.utcnow()
-
-        webhooks = await channel.webhooks()
-        webhook = discord.utils.get(webhooks, name="Rarity Logger")
-        if not webhook:
-            webhook = await channel.create_webhook(name="Rarity Logger")
-            
-        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=bot.user.display_avatar.url)
-        
-    except Exception as e:
-        print(f"Failed to log rare roll: {e}")
 
 class RollCommand(commands.Cog):
     def __init__(self, bot):
@@ -187,7 +132,6 @@ class RollCommand(commands.Cog):
                 all_rolls.append(extra_rarity)
                 await check_and_log_rarity(self.bot, interaction.user, extra_rarity)
 
-        # FIX: Unpack only names
         rarity_order = [r[0] for r in RARITIES]
         counts = Counter(all_rolls)
         sorted_results = sorted(counts.items(), key=lambda x: rarity_order.index(x[0]), reverse=True)
