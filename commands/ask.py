@@ -12,24 +12,18 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 HEADERS_GROQ = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-DEFAULT_AI_PARAMS = {
-    "max_completion_tokens": 256,
-    "temperature": 1,
-}
-
 async def generate_response(prompt, user_id):
-    user_params = DEFAULT_AI_PARAMS
     
     messages = [
-        {"role": "system", "content": "."},
+        {"role": "system", "content": "You are Urch, an AI assistant developed by urghan2, Likemea, and Urch AI."},
         {"role": "user", "content": prompt}
     ]
 
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": messages,
-        "temperature": user_params.get("temperature", 1),
-        "max_completion_tokens": user_params.get("max_completion_tokens", 256)
+        "temperature": 1,
+        "max_completion_tokens": 512
     }
    
     try:

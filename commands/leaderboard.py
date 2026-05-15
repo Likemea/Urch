@@ -4,7 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 from typing import List
 
-from utils import get_upgrade_effect
+from utils import get_upgrade_effect, format_number
 from database import db
 from raritylist import RARITIES
 
@@ -33,9 +33,9 @@ class LeaderboardView(discord.ui.View):
         max_pages = await self.get_max_pages()
         for child in self.children:
             if getattr(child, "label", "") == "◀":
-                child.disabled = (self.page == 0)
+                child.disabled = (max_pages <= 1)
             elif getattr(child, "label", "") == "▶":
-                child.disabled = (self.page >= max_pages - 1)
+                child.disabled = (max_pages <= 1)
         self.update_buttons_sync()
 
     # Category switchers
@@ -60,21 +60,19 @@ class LeaderboardView(discord.ui.View):
         await self.update_buttons_async()
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
-    # Pagination buttons
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=1)
     async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page > 0:
-            self.page -= 1
-            await self.update_buttons_async()
-            await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        max_pages = await self.get_max_pages()
+        self.page = (self.page - 1) % max_pages
+        await self.update_buttons_async()
+        await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
     @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary, row=1)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         max_pages = await self.get_max_pages()
-        if self.page < max_pages - 1:
-            self.page += 1
-            await self.update_buttons_async()
-            await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        self.page = (self.page + 1) % max_pages
+        await self.update_buttons_async()
+        await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
     async def get_leaderboard_data(self) -> List[tuple]:
         """
@@ -168,7 +166,7 @@ class LeaderboardView(discord.ui.View):
                     display_name = f"<@{user_id}>"
                 
                 if self.category == "luck":
-                    formatted_value = f"{value:.2f}"
+                    formatted_value = format_number(value)
                 elif self.category == "rolls":
                     formatted_value = f"{int(value):,}"
                 else:

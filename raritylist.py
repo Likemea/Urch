@@ -77,7 +77,7 @@ RARITIES = [
   ("Acceleration ⏩ (1 in 900,000)", 1 / 900000, "acceleration"),
   ("Atmospheric 🌫️ (1 in 975,000)", 1 / 975000, "atmospheric"),
   ("Space ☄ (1 in 999,999)", 1 / 999999, "space"),
-  ("Planetary 🌍 (1 in 1,000,000)", 1 / 1000000, "planetary"), # current endgame
+  ("Planetary 🌍 (1 in 1,000,000)", 1 / 1000000, "planetary"),
   ("Crystalline Clover 🍀💎 (1 in 1,000,000)", 1 / 1000000, "crystalline_clover"),
   ("Enlightened 🤔 (1 in 1,048,576)", 1 / 1048576, "enlightened"),
   ("Interstellar 🌞 (1 in 1,300,000)", 1 / 1300000, "interstellar"),

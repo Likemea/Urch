@@ -6,3 +6,4 @@ pytesseract
 Pillow
 numpy
 python-dotenv
+psutil

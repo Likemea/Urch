@@ -10,9 +10,10 @@ from database import DB_PATH
 from upgrades import get_upgrade_effect as calc_upgrade_effect
 from raritylist import RARITIES
 import discord
+from providers import MODELS as MODEL_LIST
 
 LOG_GUILD_ID = 1444003568263630900
-LOG_CHANNEL_NAME = "rare-rolls"
+LOG_CHANNEL_NAME = "✨🎰・rare-rolls"
 
 RARITY_ID_TO_NAME = {r[2]: r[0] for r in RARITIES}
 RARITY_NAME_SET = {r[0] for r in RARITIES}
@@ -36,16 +37,6 @@ CHECKLIST_BONUS = 0.03
 DM_HISTORY_LIMIT = 10
 SERVER_HISTORY_LIMIT = 10
 
-MODEL_LIST = {
-    "1": {"id": "llama-3.1-8b-instant", "disp": "⚡ Fast"},
-    "2": {"id": "openai/gpt-oss-20b", "disp": "⚡🧠 Thinking (Fast)"},
-    "3": {"id": "openai/gpt-oss-120b", "disp": "🧠 Thinking"},    
-    "4": {"id": "moonshotai/kimi-k2-instruct-0905", "disp": "🎭 Smartest"},
-    "5": {"id": "llama-3.3-70b-versatile", "disp": "🔘 All-rounder"},
-    "6": {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "disp": "👁 Vision"},
-    "7": {"id": "qwen/qwen3-32b", "disp": "📛 Qwen"}
-}
-
 DEFAULT_AI_PARAMS = {
     "max_completion_tokens": 500,
     "temperature": 0.75,
@@ -53,10 +44,7 @@ DEFAULT_AI_PARAMS = {
     "model": "Auto", 
     "reasoning": "Auto",
     "user_persona": "",
-    "ai_persona": "",
-    "memory_enabled": True,
-    "memory_frequency": 10,
-    "memory_probability": 0.5
+    "ai_persona": ""
 }
 
 # --- User Data Functions ---
@@ -255,15 +243,17 @@ async def inventory_all_items_sorted(user_id: str, rarities_list: list) -> list:
     )
     return sorted_items
     
-async def roll_rarity(user_id: str) -> str:
-    user = await ensure_user(user_id)
-    
-    if 'luck_override' in user and user['luck_override']:
-        luck = float(user['luck_override'])
+async def roll_rarity(user_id: str, provided_luck: float = None) -> str:
+    if provided_luck is not None:
+        luck = provided_luck
     else:
-        base_luck = float(user.get("luck_multi", 1.0))
-        bonuses = await get_upgrade_effect(str(user_id), user_obj=user)
-        luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
+        user = await ensure_user(user_id)
+        if 'luck_override' in user and user['luck_override']:
+            luck = float(user['luck_override'])
+        else:
+            base_luck = float(user.get("luck_multi", 1.0))
+            bonuses = await get_upgrade_effect(str(user_id), user_obj=user)
+            luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
 
     luck = max(1.0, luck)
     
@@ -310,20 +300,17 @@ async def process_autorolls(user_ids: List[str]):
         
         total_luck = max(1.0, total_luck)
         
-        # Roll
-        # Autoroll only does ONE roll per tick to stay balanced and keep things light
-        # But wait, the user said "autoroll has the same upgrades and stats as if the user rolled normally"
-        # Normal /roll includes multi_roll.
-        
+        # Roll consolidated into one singular high-luck roll for system health
         extra_rolls = bonuses.get("multi_roll", 0)
         num_rolls = 1 + extra_rolls
         
-        results = []
-        for _ in range(num_rolls):
-            results.append(await roll_rarity(user_id))
+        temp_luck = total_luck * num_rolls
+        rolled_rarity = await roll_rarity(user_id, provided_luck=temp_luck)
+        results = [rolled_rarity]
         
         # Process results
-        roll_count_inc = len(results)
+        # roll_count_inc remains num_rolls to maintain progression/luck growth speed
+        roll_count_inc = num_rolls
         new_highscore = user.get("highscore")
         rarity_order = [r[0] for r in RARITIES]
         
@@ -344,8 +331,8 @@ async def process_autorolls(user_ids: List[str]):
                 total_weight = sum(r[1] for r in RARITIES)
                 one_in = total_weight / weight
                 
-                if one_in >= (total_luck * 100):
-                    rare_hits.append((user_id, res, one_in, total_luck))
+                if one_in >= (temp_luck * 100):
+                    rare_hits.append((user_id, res, one_in, temp_luck))
 
         # Luck growth
         current_luck = user.get('luck_multi', 1.0)
@@ -414,7 +401,7 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             description=f"**{user.name}** just rolled **{rarity_name}**!",
             color=color
         )
-        embed.add_field(name="Luck", value=f"{total_luck:.2f}", inline=True)
+        embed.add_field(name="Luck", value=format_number(total_luck), inline=True)
         embed.add_field(name="Rarity", value=f"1 in {one_in:,.0f}", inline=True)
         embed.set_thumbnail(url=user.display_avatar.url)
         embed.timestamp = discord.utils.utcnow()
@@ -467,7 +454,7 @@ async def set_user_ai_param(user_id: str, param_name: str, value: any):
     await db.ensure_user_params(user_id)
     await db.set_user_param(user_id, param_name, value)
 
-# --- Memory Functions ---
+# --- Summary Functions ---
 
 async def get_last_summary_time(user_id: str) -> Optional[str]:
     params = await db.get_user_params(user_id)
@@ -505,8 +492,6 @@ async def equip_user_persona(user_id: str, name: str) -> bool:
 async def edit_existing_persona(user_id: str, name: str, user_p: str, ai_p: str) -> bool:
     return await db.edit_persona(user_id, name, user_p, ai_p)
 
-async def save_conversation_history(): pass
-async def load_conversation_history(): pass
 async def get_messages_for_context(user_id, is_dm, guild_id=None, include_internal=False, read_only=True):
     return await db.get_messages_for_context(user_id if is_dm else None, guild_id if not is_dm else None, 
                                            DM_HISTORY_LIMIT if is_dm else SERVER_HISTORY_LIMIT, include_internal, read_only)
@@ -537,16 +522,29 @@ async def check_reaction_permission(user_id, is_dm, guild_id, bot_msg_id, reacto
 async def get_context_for_message(user_id, is_dm, guild_id, message_id):
     return await db.get_context_for_message(user_id, guild_id, message_id)
 
+def format_number(num: float) -> str:
+    """Formats a number with suffixes like k, M, B, etc."""
+    if num < 1000:
+        return f"{num:.2f}"
+    
+    suffixes = ["", "k", "M", "B", "T", "Qa", "Qn", "Sx", "Sp", "Oc", "No", "Dc"]
+    magnitude = 0
+    while round(abs(num), 2) >= 1000 and magnitude < len(suffixes) - 1:
+        magnitude += 1
+        num /= 1000.0
+    
+    return f"{num:.2f}{suffixes[magnitude]}"
+
 __all__ = [
     'db', 'MODEL_LIST', 'DEFAULT_AI_PARAMS', 'LUCK_GROWTH_PER_ROLL', 'CHECKLIST_BONUS',
-    'ensure_user', 'get_user_data', 'save_user_data', 'create_backup',
+    'ensure_user', 'get_user_data', 'save_user_data',
     'currency_add', 'currency_remove', 'currency_count', 'has_requirements',
     'consume_requirements', 'inventory_all_items_sorted', 'get_upgrade_effect',
     'get_checklist_bonus', 'get_user_ai_params', 'set_user_ai_param',
     'get_last_summary_time', 'update_last_summary_time', 'get_unsummarized_messages',
     'get_user_personas', 'add_new_persona', 'delete_user_persona',
-    'equip_user_persona', 'edit_existing_persona', 'load_conversation_history',
-    'save_conversation_history', 'get_messages_for_context', 'append_message_for_context',
-    'update_message_in_history', 'delete_message_from_history', 'check_reaction_permission',
-    'get_context_for_message'
+    'equip_user_persona', 'edit_existing_persona', 'get_messages_for_context',
+    'append_message_for_context', 'update_message_in_history', 'delete_message_from_history',
+    'check_reaction_permission', 'get_context_for_message', 'format_number',
+    'process_autorolls', 'log_rare_roll', 'roll_rarity', 'update_user_data'
 ]

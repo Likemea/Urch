@@ -23,7 +23,6 @@ class Database:
     async def initialize(self):
         """Initialize database and create tables"""
         self.conn = await aiosqlite.connect(self.db_path)
-        # Enable WAL mode for concurrency and speed
         await self.conn.execute("PRAGMA journal_mode=WAL")
         await self.conn.execute("PRAGMA synchronous=NORMAL")
         await self.conn.execute("PRAGMA foreign_keys=ON")
@@ -44,12 +43,10 @@ class Database:
             )
         """)
         
-        # Add autoroll_active column if it doesn't exist (for existing databases)
         try:
             await self.conn.execute("ALTER TABLE users ADD COLUMN autoroll_active BOOLEAN DEFAULT 0")
             await self.conn.commit()
         except aiosqlite.OperationalError:
-            # Column already exists
             pass
         
         # User inventory table
@@ -93,9 +90,6 @@ class Database:
                 top_p REAL DEFAULT 1.0,
                 model TEXT DEFAULT 'Auto',
                 reasoning TEXT DEFAULT 'Auto',
-                memory_enabled BOOLEAN DEFAULT TRUE,
-                memory_frequency INTEGER DEFAULT 10,
-                memory_probability REAL DEFAULT 0.35,
                 user_persona TEXT DEFAULT '',
                 ai_persona TEXT DEFAULT '',
                 active_persona TEXT DEFAULT 'Default',
@@ -128,7 +122,7 @@ class Database:
             )
         """)
         
-        # Create indexes for performance
+        # indexes for performance
         await self.conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_conv_user_time 
             ON conversation_history (user_id, timestamp)
@@ -141,6 +135,19 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_inventory_user 
             ON user_inventory (user_id, item_name)
         """)
+        
+        # Rare hits table (meaningful rolls)
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS rare_hits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                rarity_name TEXT NOT NULL,
+                one_in REAL NOT NULL,
+                total_luck REAL NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+        """)
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_rare_hits_user ON rare_hits (user_id, timestamp)")
         
         await self.conn.commit()
         
@@ -158,7 +165,6 @@ class Database:
         async with lock:
             yield
             
-        # Optional: Periodic cleanup
         if len(self._user_locks) > 100:
             asyncio.create_task(self._cleanup_locks())
 
@@ -190,7 +196,6 @@ class Database:
     
     async def get_user_data(self, user_id: str) -> Optional[Dict[str, Any]]:
         await self._check_conn()
-        # No lock needed for reads usually, but safe to keep if unsure about concurrent writes
         async with self.conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)) as cursor:
             user_row = await cursor.fetchone()
             if not user_row: return None
@@ -228,12 +233,12 @@ class Database:
                 await self.conn.execute("""
                     INSERT OR REPLACE INTO users 
                     (user_id, roll_count, highscore, luck_multi, max_luck, clover_multi, 
-                        clover_every, clovers_earned, luck_override)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        clover_every, clovers_earned, luck_override, autoroll_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     user_id, data.get("roll_count", 0), data.get("highscore"), data.get("luck_multi", 1.0),
                     data.get("max_luck", 1.0), data.get("clover_multi", 1.0), data.get("clover_every", 10),
-                    data.get("clovers_earned", 0), data.get("luck_override")
+                    data.get("clovers_earned", 0), data.get("luck_override"), data.get("autoroll_active", 0)
                 ))
                 
                 if "inventory" in data:
@@ -319,6 +324,34 @@ class Database:
                 await self.conn.rollback()
                 logger.error(f"Bulk update failed: {e}")
                 raise e
+
+    async def add_rare_hit(self, user_id: str, rarity_name: str, one_in: float, total_luck: float):
+        """Store a meaningful roll in the database"""
+        await self._check_conn()
+        timestamp = datetime.utcnow().isoformat()
+        async with self._lock:
+            await self.conn.execute("""
+                INSERT INTO rare_hits (user_id, rarity_name, one_in, total_luck, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, rarity_name, one_in, total_luck, timestamp))
+            await self.conn.execute("""
+                DELETE FROM rare_hits WHERE id NOT IN (
+                    SELECT id FROM rare_hits WHERE user_id = ? ORDER BY timestamp DESC LIMIT 100
+                ) AND user_id = ?
+            """, (user_id, user_id))
+            await self.conn.commit()
+
+    async def get_recent_rare_hits(self, user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Fetch the most recent rare rolls for a user"""
+        await self._check_conn()
+        async with self.conn.execute("""
+            SELECT rarity_name, one_in, total_luck, timestamp 
+            FROM rare_hits 
+            WHERE user_id = ? 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        """, (user_id, limit)) as cursor:
+            return [dict(row) async for row in cursor]
     
     # --- User Parameters ---
     
@@ -335,7 +368,7 @@ class Database:
             return dict(row) if row else self._get_default_params()
 
     def _get_default_params(self) -> Dict[str, Any]:
-        return {"max_completion_tokens": 500, "temperature": 0.75, "top_p": 1.0, "model": "Auto", "reasoning": "Auto", "memory_enabled": True, "memory_frequency": 10, "memory_probability": 0.35, "user_persona": "", "ai_persona": "", "active_persona": "Default", "last_summary_time": None}
+        return {"max_completion_tokens": 500, "temperature": 0.75, "top_p": 1.0, "model": "Auto", "reasoning": "Auto", "user_persona": "", "ai_persona": "", "active_persona": "Default", "last_summary_time": None}
 
     async def set_user_params(self, user_id: str, params: Dict[str, Any]):
         """Set user parameters"""
@@ -344,9 +377,9 @@ class Database:
             await self.conn.execute("""
                 INSERT OR REPLACE INTO user_params 
                 (user_id, max_completion_tokens, temperature, top_p, model, reasoning,
-                 memory_enabled, memory_frequency, memory_probability, user_persona,
+                 user_persona,
                  ai_persona, active_persona, last_summary_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 user_id,
                 params.get("max_completion_tokens", 500),
@@ -354,9 +387,6 @@ class Database:
                 params.get("top_p", 1.0),
                 params.get("model", "Auto"),
                 params.get("reasoning", "Auto"),
-                params.get("memory_enabled", True),
-                params.get("memory_frequency", 10),
-                params.get("memory_probability", 0.35),
                 params.get("user_persona", ""),
                 params.get("ai_persona", ""),
                 params.get("active_persona", "Default"),
@@ -543,6 +573,47 @@ class Database:
                         return True
         return False
             
+    async def delete_messages_from_history_bulk(self, guild_id: str, message_ids: List[int]) -> int:
+        """Delete multiple history rows based on a list of Discord message IDs"""
+        if not message_ids:
+            return 0
+            
+        await self._check_conn()
+        deleted_count = 0
+        target_set = set(message_ids)
+        
+        async with self._lock:
+            # We fetch all rows for the guild to check their message_ids JSON
+            async with self.conn.execute(
+                "SELECT id, message_ids FROM conversation_history WHERE guild_id = ?", 
+                (str(guild_id),)
+            ) as cursor:
+                rows_to_delete = []
+                async for row in cursor:
+                    if row["message_ids"]:
+                        try:
+                            ids = json.loads(row["message_ids"])
+                            if any(mid in target_set for mid in ids):
+                                rows_to_delete.append(row["id"])
+                        except:
+                            continue
+                
+                if rows_to_delete:
+                    # SQLite has a limit on the number of variables in a query, 
+                    # so we might need to chunk this if there are thousands, 
+                    # but for history it should be manageable in one go or small chunks.
+                    for i in range(0, len(rows_to_delete), 500):
+                        chunk = rows_to_delete[i:i+500]
+                        placeholders = ",".join("?" for _ in chunk)
+                        cursor = await self.conn.execute(
+                            f"DELETE FROM conversation_history WHERE id IN ({placeholders})", 
+                            chunk
+                        )
+                        deleted_count += cursor.rowcount
+            
+            await self.conn.commit()
+        return deleted_count
+
     async def clear_conversation_history(self, user_id: Optional[str] = None, guild_id: Optional[str] = None) -> bool:
         if not user_id and not guild_id:
             return False
@@ -629,6 +700,24 @@ class Database:
             stats["top_users"] = [(row[0], row[1]) async for row in cur]
         
         return stats
+
+    async def get_guild_message_ids(self, guild_id: str) -> List[int]:
+        """Fetch all bot message IDs for a specific guild"""
+        await self._check_conn()
+        all_ids = []
+        async with self.conn.execute(
+            "SELECT message_ids FROM conversation_history WHERE guild_id = ? AND role = 'assistant'", 
+            (str(guild_id),)
+        ) as cursor:
+            async for row in cursor:
+                if row["message_ids"]:
+                    try:
+                        ids = json.loads(row["message_ids"])
+                        if isinstance(ids, list):
+                            all_ids.extend(ids)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+        return list(set(int(mid) for mid in all_ids if mid))
         
     async def close(self):
         if self.conn:

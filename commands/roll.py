@@ -5,7 +5,7 @@ from discord.ext import commands
 from collections import Counter
 import math
 
-from utils import roll_rarity, update_user_data, ensure_user, get_upgrade_effect, log_rare_roll
+from utils import roll_rarity, update_user_data, ensure_user, get_upgrade_effect, log_rare_roll, format_number
 from raritylist import RARITIES
 
 class ButtonView(discord.ui.View):
@@ -50,7 +50,7 @@ class ButtonView(discord.ui.View):
         counts = Counter(all_rolls)
         sorted_results = sorted(counts.items(), key=lambda x: rarity_order.index(x[0]), reverse=True)
 
-        summary = ", ".join(
+        summary = "\n".join(
             f"x{count} {rarity}" if count > 1 else rarity
             for rarity, count in sorted_results
         )
@@ -67,10 +67,10 @@ class ButtonView(discord.ui.View):
         luck = float(luck or 0.0)
 
         new_embed = discord.Embed(title="🎲 Roll Result 🎲", color=discord.Color.blurple())
-        new_embed.description = f"You rolled: **{summary}**"
+        new_embed.description = f"**{summary}**"
         new_embed.add_field(name="Rolls", value=new_roll_count, inline=True)
         new_embed.add_field(name="Best Roll", value=new_highscore, inline=True)
-        new_embed.add_field(name="Luck", value=f"{luck:.2f}", inline=True)
+        new_embed.add_field(name="Luck", value=format_number(luck), inline=True)
 
         self.rarity = new_rarity
         
@@ -136,7 +136,7 @@ class RollCommand(commands.Cog):
         counts = Counter(all_rolls)
         sorted_results = sorted(counts.items(), key=lambda x: rarity_order.index(x[0]), reverse=True)
 
-        summary = ", ".join(f"x{count} {rarity}" if count > 1 else rarity for rarity, count in sorted_results)
+        summary = "\n".join(f"x{count} {rarity}" if count > 1 else rarity for rarity, count in sorted_results)
         
         roll_count = user['roll_count'] + len(all_rolls)
         
@@ -150,10 +150,10 @@ class RollCommand(commands.Cog):
         highscore = user.get("highscore", rarity)
 
         embed = discord.Embed(title="🎲 Roll Result 🎲", color=discord.Color.blurple())
-        embed.description = f"You rolled: **{summary}**"
+        embed.description = f"**{summary}**"
         embed.add_field(name="Rolls", value=roll_count, inline=True)
         embed.add_field(name="Best Roll", value=highscore, inline=True)
-        embed.add_field(name="Luck", value=f"{luck:.2f}", inline=True)
+        embed.add_field(name="Luck", value=format_number(luck), inline=True)
 
         view = ButtonView(user_id, rarity, self.bot)
         await interaction.followup.send(embed=embed, view=view)

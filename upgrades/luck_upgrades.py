@@ -57,7 +57,7 @@ LUCK_UPGRADES = {
             50: {"divine": 3, "53_4": 1, "otherworldly": 4, "enigmatic": 1, "quantum": 1, "binary": 1, "continental": 1, "archidon": 2, "godly": 2}, # 518,347 diff.
             51: {"ascendant": 2, "exode": 5},                                  
             52: {"unfathomable": 1, "divine": 1, "extreme": 6},
-            53: {"miner": 5, "53_4": 3, "53_3": 53, "53": 69}, 
+            53: {"miner": 5, "53_4": 3, "53_3": 33, "53": 69}, 
             54: {"steel": 3, "grass": 7},  
             55: {"easy": 4, "archidon": 10, "good": 1},           
             56: {"negus": 4, "steel": 2, "freezing": 100},     
@@ -111,7 +111,7 @@ LUCK_UPGRADES = {
     "exp_luck": {
         "name": "📈 Exponential Luck",
         "description": "rarity^(🍀0.2*tier)",
-        "max_tier": 5,
+        "max_tier": 12,
         "requirements": {
             1: {"common": 24, "uncommon": 16, "rare": 12, "epic": 8},
             2: {"nice": 10, "poop": 10, "legendary": 5},
@@ -122,7 +122,9 @@ LUCK_UPGRADES = {
             7: {"planetary": 1, "redacted": 5, "steel": 7, "miner": 9, "53_4": 12, "insane": 30},
             8: {"radiant": 1, "luminary": 4, "spectral": 5, "infrared": 5, "interstellar": 8, "hot": 100},
             9: {"superman": 64, "charge": 44, "transcendant": 20, "balance": 10, "galactic": 7, "uncomputable": 5},
-            10: {"creativity": 12, "irradiated": 5, "53_7": 3, "singularity": 2, "angelic": 2, "base_gap_1": 1}
+            10: {"creativity": 12, "irradiated": 5, "53_7": 3, "singularity": 2, "angelic": 2, "base_gap_1": 1},
+            11: {"redacted": 76, "planetary": 55, "rainbow": 52, "universal": 48, "what": 45, "darkness": 42, "megaman": 38, "light": 35, "balance": 32, "galactic": 28, "uncomputable": 25, "creativity": 22, "irradiated": 18, "53_7": 14, "singularity": 10, "angelic": 6},
+            12: {"common": 1000, "uncommon": 950, "rare": 900, "epic": 850, "good": 800, "cool": 750, "hot": 700, "53": 650, "great": 600, "nice": 690, "very_nice": 345, "enigmatic": 270, "easy": 230, "slick": 180, "crystalline_clover": 120, "acoustic": 90, "luminary": 60, "radioactive": 40, "temporal": 20, "iridescence": 10}
         },
         "effect": lambda tier, user: {
             "luck_bonus": ((tier or 0) ** 0.2) * 0.1
@@ -131,13 +133,15 @@ LUCK_UPGRADES = {
     "checklist_luck": {
         "name": "📋 Checklist Luck",
         "description": "Multiplies your luck based on how many rarities you've discovered.\nFormula: `1.0 + (rarities_discovered * 0.001 * tier)`",
-        "max_tier": 5,
+        "max_tier": 7,
         "requirements": {
-            1: {"amazing": 3, "miner": 5, "unfathomable": 10},
+            1: {"unfathomable": 10, "miner": 5, "amazing": 3},
             2: {"steel": 5, "easy": 5},
-            3: {"negus": 5, "redacted": 3},
-            4: {"skilled": 5, "supreme": 3},
-            5: {"charge": 5, "unstoppable": 3}
+            3: {"otherworldly": 7, "negus": 5, "redacted": 3},
+            4: {"unfathomable": 25, "skilled": 5, "supreme": 3},
+            5: {"redacted": 8, "charge": 5, "unstoppable": 3},
+            6: {"divine": 30, "steel": 20, "skilled": 12, "supreme": 8, "fuchsia": 3, "lottery": 2, "planetary": 1},
+            7: {"lucky": 267, "continental": 68, "enigmatic": 59, "unfathomable": 44, "easy": 32, "failure": 20, "planetary": 10}
         },
         "effect": lambda tier, user: {
             "exp_bonus": 1.0 + (len(user.get('discovered', {})) * 0.001 * tier)

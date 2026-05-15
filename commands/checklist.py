@@ -17,6 +17,13 @@ class ChecklistView(discord.ui.View):
         self.discovered = discovered
         self.page = 0
         self.total = len(self.rarity_names)
+        self.update_buttons()
+
+    def update_buttons(self):
+        max_page = max(0, ceil(self.total / ITEMS_PER_PAGE) - 1)
+        for child in self.children:
+            if isinstance(child, discord.ui.Button) and child.label in ["⬅️ Prev", "➡️ Next"]:
+                child.disabled = max_page <= 0
 
     def format_page_embed(self) -> discord.Embed:
         start = self.page * ITEMS_PER_PAGE
@@ -41,18 +48,17 @@ class ChecklistView(discord.ui.View):
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("This checklist isn't yours.", ephemeral=True)
-        if self.page > 0:
-            self.page -= 1
-            await interaction.response.edit_message(embed=self.format_page_embed(), view=self)
+        max_page = max(0, ceil(self.total / ITEMS_PER_PAGE) - 1)
+        self.page = (self.page - 1) % (max_page + 1)
+        await interaction.response.edit_message(embed=self.format_page_embed(), view=self)
 
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("This checklist isn't yours.", ephemeral=True)
         max_page = max(0, ceil(self.total / ITEMS_PER_PAGE) - 1)
-        if self.page < max_page:
-            self.page += 1
-            await interaction.response.edit_message(embed=self.format_page_embed(), view=self)
+        self.page = (self.page + 1) % (max_page + 1)
+        await interaction.response.edit_message(embed=self.format_page_embed(), view=self)
 
 class ChecklistCommand(commands.Cog):
     def __init__(self, bot):

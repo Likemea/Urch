@@ -14,27 +14,36 @@ from collections import defaultdict
 # tier_key -> { models: [...], rps: float, rpm: int }
 DEFAULT_TIER_LIMITS = {
     "light": {
-        "models": ["llama-3.1-8b-instant"],
-        "rps": 1.0,
-        "rpm": 20
+        "models": [
+            "llama-3.1-8b-instant",
+            "openai",
+            "nova",
+            "nova-fast"
+            ],
+        "rps": 0.45,
+        "rpm": 6
     },
     "medium": {
         "models": [
             "openai/gpt-oss-20b",
             "llama-3.3-70b-versatile",
             "qwen/qwen3-32b",
-            "meta-llama/llama-4-scout-17b-16e-instruct"
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "gemini-fast",
+            "mistral"
         ],
-        "rps": 0.5,
-        "rpm": 12
+        "rps": 0.25,
+        "rpm": 4
     },
     "heavy": {
         "models": [
             "openai/gpt-oss-120b",
-            "moonshotai/kimi-k2-instruct-0905"
+            "grok",
+            "minimax",
+            "kimi"
         ],
-        "rps": 0.33,
-        "rpm": 8
+        "rps": 0.125,
+        "rpm": 2
     }
 }
 
@@ -61,7 +70,7 @@ class UserBucket:
         if len(self.timestamps) >= rpm:
             oldest = self.timestamps[0]
             wait = 60.0 - (now - oldest)
-            return False, max(0.1, wait), f"Rate limit: {rpm} requests/minute reached."
+            return False, max(0.1, wait), f"{rpm} requests/minute reached."
         
         # RPS check
         if rps > 0 and self.timestamps:
@@ -70,7 +79,7 @@ class UserBucket:
             elapsed = now - last
             if elapsed < min_interval:
                 wait = min_interval - elapsed
-                return False, max(0.1, wait), f"Too fast! Max {rps:.1f} requests/second."
+                return False, max(0.1, wait), f"Max {rps:.1f} requests/second."
         
         # Allowed
         self.timestamps.append(now)
@@ -94,7 +103,7 @@ class RateLimiter:
         # Dynamic scaling config
         self.dynamic_enabled = True
         self.low_usage_threshold = 2      # <= this many active users = generous
-        self.high_usage_threshold = 10    # >= this many active users = tight
+        self.high_usage_threshold = 5    # >= this many active users = tight
         self.low_multiplier = 1.5         # generous multiplier
         self.high_multiplier = 0.5        # tight multiplier
         
@@ -204,7 +213,6 @@ class RateLimiter:
         """Reset a user's rate limit bucket."""
         if user_id in self.users:
             del self.users[user_id]
-
 
 # Singleton instance
 rate_limiter = RateLimiter()

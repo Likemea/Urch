@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils import ensure_user, save_user_data, get_user_data
+from utils import ensure_user, save_user_data, get_user_data, format_number
 
 class SetLuckCommand(commands.Cog):
     def __init__(self, bot):
@@ -29,7 +29,7 @@ class SetLuckCommand(commands.Cog):
             user["luck_multi"] = personal_max
             if "luck_override" in user:
                 del user["luck_override"]
-            description = f"🍀 Base luck set to your max: **{personal_max:.2f}**"
+            description = f"🍀 Base luck set to your max: **{format_number(personal_max)}**"
             color = discord.Color.green()
             
         else:
@@ -37,9 +37,9 @@ class SetLuckCommand(commands.Cog):
             
             if override_value > personal_max:
                 override_value = personal_max
-                description = f"⚠️ Override capped to your max: **{personal_max:.2f}**"
+                description = f"⚠️ Override capped to your max: **{format_number(personal_max)}**"
             else:
-                description = f"🍀 Effective luck set to **{override_value:.2f}**"
+                description = f"🍀 Effective luck set to **{format_number(override_value)}**"
             
             user["luck_override"] = override_value
             color = discord.Color.gold()
@@ -54,7 +54,7 @@ class SetLuckCommand(commands.Cog):
         
         embed.add_field(
             name="Max Luck", 
-            value=f"**{personal_max:.2f}**", 
+            value=f"**{format_number(personal_max)}**", 
             inline=True
         )
         

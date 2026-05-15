@@ -47,27 +47,25 @@ class InventoryView(discord.ui.View):
         prev_btn = labels.get("⬅️ Prev")
         next_btn = labels.get("➡️ Next")
         if prev_btn:
-            prev_btn.disabled = self.page == 0
+            prev_btn.disabled = self.total_pages <= 1
         if next_btn:
-            next_btn.disabled = self.page >= self.total_pages - 1
+            next_btn.disabled = self.total_pages <= 1
 
     @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("This inventory isn’t yours.", ephemeral=True)
-        if self.page > 0:
-            self.page -= 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.format_page(), view=self)
+        self.page = (self.page - 1) % self.total_pages
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.format_page(), view=self)
 
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("This inventory isn’t yours.", ephemeral=True)
-        if self.page < self.total_pages - 1:
-            self.page += 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.format_page(), view=self)
+        self.page = (self.page + 1) % self.total_pages
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.format_page(), view=self)
 
 
 class InventoryCommand(commands.Cog):

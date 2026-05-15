@@ -4,6 +4,8 @@ from discord import app_commands
 from discord.ext import commands
 import datetime
 import time
+import psutil
+import os
 
 class StatsCommand(commands.Cog):
     def __init__(self, bot):
@@ -26,6 +28,17 @@ class StatsCommand(commands.Cog):
         embed.add_field(name="Servers", value=f"`{guild_count}`", inline=True)
         embed.add_field(name="Total Users", value=f"`{user_count:,}`", inline=True)
         embed.add_field(name="Latency", value=f"`{round(self.bot.latency * 1000)}ms`", inline=True)
+
+        # System Metrics
+        cpu_usage = psutil.cpu_percent()
+        ram_usage = psutil.virtual_memory().percent
+        
+        # Bot Process Metrics
+        process = psutil.Process(os.getpid())
+        bot_ram = process.memory_info().rss / (1024 * 1024) # MB
+
+        embed.add_field(name="CPU Usage", value=f"`{cpu_usage}%`", inline=True)
+        embed.add_field(name="RAM Usage", value=f"`{ram_usage}%` (`{bot_ram:.1f} MB` bot)", inline=True)
         
         await interaction.response.send_message(embed=embed)
 

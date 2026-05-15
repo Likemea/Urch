@@ -5,13 +5,11 @@ from typing import Dict
 from .luck_upgrades import LUCK_UPGRADES
 from .roll_upgrades import ROLL_UPGRADES
 from .clover_upgrades import CLOVER_UPGRADES
-from .autoroll_upgrades import AUTOROLL_UPGRADES
 
 UPGRADE_CATEGORIES = {
     "luck": LUCK_UPGRADES,
     "roll": ROLL_UPGRADES,
     "clover": CLOVER_UPGRADES,
-    "autoroll": AUTOROLL_UPGRADES,
 }
 
 # 1. Update arguments to accept user_obj and the pre-calculated checklist bonus
@@ -31,6 +29,7 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
         "clover_bonus": 0.0,
         "clover_every": 10,
         "lucky_roll_active": False,
+        "autoroll_unlocked": False,
     }
 
     # 3. Use the passed object directly
@@ -104,6 +103,11 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
                     res = defn["effect"](tier, user)
                     if res.get("lucky_roll"):
                         effects["lucky_roll_active"] = True
+            elif key == "autoroll_unlock":
+                if "effect" in defn and callable(defn["effect"]):
+                    res = defn["effect"](tier, user)
+                    if res.get("autoroll_unlocked"):
+                        effects["autoroll_unlocked"] = True
                     
     # ---- Clover category ----
     clover_upgs = upgrades.get("clover", {})

@@ -1,6 +1,7 @@
 # Urch/commands/safety.py
 import time
 import discord
+import asyncio
 from discord import app_commands
 from discord.ext import commands
 from database import db
@@ -273,6 +274,10 @@ class DatabasePanel(discord.ui.View):
         )
         await interaction.response.edit_message(embed=embed, view=view)
     
+    @discord.ui.button(label="Purge Server (Discord)", style=discord.ButtonStyle.danger, emoji="🧹", row=1)
+    async def purge_server_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GuildPurgeModal(self.bot))
+
     @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩", row=1)
     async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = await self.parent.build_overview_embed()
@@ -305,6 +310,201 @@ class PurgeConfirmView(discord.ui.View):
         embed = await self.parent.build_embed()
         await interaction.response.edit_message(embed=embed, view=self.parent)
 
+class PurgeStatusView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=600) 
+        self.is_cancelled = False
+
+    @discord.ui.button(label="Stop Purge", style=discord.ButtonStyle.danger, emoji="🛑")
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.is_cancelled = True
+        
+        button.disabled = True
+        button.label = "Stopping... (Waiting for current channel to finish)"
+        button.style = discord.ButtonStyle.secondary
+        await interaction.response.edit_message(view=self)
+
+class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
+    guild_id_input = discord.ui.TextInput(
+        label="Guild ID",
+        placeholder="Paste the server ID here...",
+        min_length=17,
+        max_length=20,
+        required=True
+    )
+    
+    limit_input = discord.ui.TextInput(
+        label="Message Search Limit (Per Channel)",
+        placeholder="e.g., 2000",
+        default="2000",
+        max_length=5,
+        required=True
+    )
+
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        guild_id_str = self.guild_id_input.value
+        
+        try:
+            search_limit = int(self.limit_input.value)
+        except ValueError:
+            return await interaction.response.send_message("❌ Search limit must be an integer.", ephemeral=True)
+        
+        try:
+            guild = self.bot.get_guild(int(guild_id_str))
+            if not guild:
+                return await interaction.response.send_message("❌ I am not in that server.", ephemeral=True)
+
+            await interaction.response.defer(ephemeral=True)
+
+            # We removed the DB fetching here. We are going in blind and scanning!
+            total_deleted = 0
+            channels_processed = 0
+            
+            status_embed = discord.Embed(
+                title=f"🧹 Purging: {guild.name}",
+                description=f"Scanning up to {search_limit} messages per channel...\nPreparing channel list...",
+                color=discord.Color.blue()
+            )
+            
+            status_view = PurgeStatusView()
+            status_msg = await interaction.followup.send(embed=status_embed, view=status_view, ephemeral=True)
+
+            # Gather ALL possible text sources securely
+            channels_to_scan = []
+            channels_to_scan.extend(getattr(guild, 'text_channels', []))
+            channels_to_scan.extend(getattr(guild, 'voice_channels', []))
+            channels_to_scan.extend(getattr(guild, 'stage_channels', []))
+            channels_to_scan.extend(getattr(guild, 'forum_channels', []))
+            
+            # Handle Threads (Active + Archived)
+            channels_to_scan.extend(getattr(guild, 'threads', []))
+            for channel in getattr(guild, 'text_channels', []):
+                try:
+                    async for thread in channel.archived_threads(limit=None):
+                        channels_to_scan.append(thread)
+                except Exception:
+                    continue
+            
+            total_channels = len(channels_to_scan)
+            last_update_time = time.time()
+            last_update_deleted = 0
+            last_update_channels = 0
+
+            def build_progress_bar(current, total, length=15):
+                percent = current / total if total > 0 else 1.0
+                filled = int(length * percent)
+                bar = "█" * filled + "░" * (length - filled)
+                return f"`[{bar}] {int(percent * 100)}%`"
+
+            # Execution Loop
+            for channel in channels_to_scan:
+                if status_view.is_cancelled:
+                    break
+                
+                try:
+                    perms = channel.permissions_for(guild.me)
+                    if not perms.read_message_history:
+                        channels_processed += 1
+                        continue
+
+                    # ONLY check if the bot sent it. No DB required.
+                    deleted = await channel.purge(
+                        limit=search_limit, 
+                        check=lambda m: m.author.id == self.bot.user.id,
+                        bulk=True
+                    )
+                    
+                    if deleted:
+                        total_deleted += len(deleted)
+                    
+                except discord.Forbidden:
+                    pass 
+                except discord.HTTPException as e:
+                    if e.status == 429:
+                        await asyncio.sleep(e.retry_after or 5.0)
+                except Exception:
+                    pass 
+                
+                channels_processed += 1
+                
+                # Progress updates 
+                current_time = time.time()
+                time_since_last = current_time - last_update_time
+                channels_since_last = channels_processed - last_update_channels
+                deleted_since_last = total_deleted - last_update_deleted
+                
+                # UPDATE LOGIC: 
+                # Has it been at least 3s AND (did we scan 5+ channels OR delete 50+ msgs)?
+                # OR has it been 8s? (The "heartbeat" check so the user doesn't think it froze)
+                
+                needs_update = (time_since_last >= 3.0 and (channels_since_last >= 5 or deleted_since_last >= 50)) or (time_since_last >= 8.0)
+
+                if needs_update:
+                    progress_bar = build_progress_bar(channels_processed, total_channels)
+                    status_embed.description = (
+                        f"{progress_bar}\n\n"
+                        f"**Channels Scanned:** {channels_processed} / {total_channels}\n"
+                        f"**Messages Deleted:** `{total_deleted}`\n"
+                        f"*(Searching up to {search_limit} msgs per channel)*"
+                    )
+                    try:
+                        await status_msg.edit(embed=status_embed)
+                        last_update_time = current_time
+                        last_update_deleted = total_deleted
+                        last_update_channels = channels_processed
+                    except discord.HTTPException:
+                        pass
+                
+                if len(deleted) > 0:
+                    await asyncio.sleep(1.0)
+                else:
+                    await asyncio.sleep(0.1)
+
+            # Final Report
+            if status_view.is_cancelled:
+                status_embed.title = "🛑 Purge Aborted"
+                status_embed.color = discord.Color.orange()
+                status_embed.description = (
+                    f"**Operation manually stopped.**\n\n"
+                    f"Wiped **{total_deleted}** messages across **{channels_processed}** sources before stopping.\n"
+                    f"⚠️ *Database entries for this server were NOT cleared because the operation did not finish.*"
+                )
+                await status_msg.edit(embed=status_embed, view=None)
+            else:
+                # Wipe the entire guild from DB, regardless of purge results
+                try:
+                    async with db._lock:
+                        await db.conn.execute("DELETE FROM conversation_history WHERE guild_id = ?", (guild_id_str,))
+                        await db.conn.commit()
+                    db_wiped_msg = f"\nAll database entries for Guild `{guild_id_str}` have been cleared."
+                except Exception as e:
+                    db_wiped_msg = f"\n⚠️ *Failed to clear database entries: {e}*"
+                
+                status_embed.title = "✅ Purge Complete"
+                status_embed.color = discord.Color.green()
+                
+                if total_deleted > 0:
+                    status_embed.description = (
+                        f"{build_progress_bar(1, 1)}\n\n"
+                        f"Successfully wiped **{total_deleted}** messages across **{channels_processed}** sources."
+                        f"{db_wiped_msg}"
+                    )
+                else:
+                    status_embed.description = (
+                        f"{build_progress_bar(1, 1)}\n\n"
+                        f"Processed **{channels_processed}** sources but found **0** messages to delete."
+                        f"{db_wiped_msg}"
+                    )
+                await status_msg.edit(embed=status_embed, view=None)
+
+        except ValueError:
+            await interaction.followup.send("❌ Invalid ID format.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ Operation stopped gracefully due to unexpected error: {e}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(SafetyCommand(bot))

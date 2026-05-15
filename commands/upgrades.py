@@ -4,7 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 from typing import List
 
-from utils import save_user_data, ensure_user, has_requirements, consume_requirements, get_item_count, get_upgrade_effect, RARITY_ID_TO_NAME
+from utils import save_user_data, ensure_user, has_requirements, consume_requirements, get_item_count, get_upgrade_effect, RARITY_ID_TO_NAME, format_number
 from upgrades import UPGRADE_CATEGORIES
 
 class UpgradeView(discord.ui.View):
@@ -53,13 +53,15 @@ class UpgradeView(discord.ui.View):
         self.update_buttons()
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
-    # previous / next for per-upgrade navigation
     @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary, row=1)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("This isn’t your menu.", ephemeral=True)
-        if self.page > 0:
-            self.page -= 1
+        
+        category_dict = UPGRADE_CATEGORIES.get(self.category, {})
+        num_upgrades = len(category_dict)
+        if num_upgrades > 0:
+            self.page = (self.page - 1) % num_upgrades
             self.update_buttons()
             await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
@@ -67,9 +69,11 @@ class UpgradeView(discord.ui.View):
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("This isn’t your menu.", ephemeral=True)
-        max_idx = max(0, len(list(UPGRADE_CATEGORIES[self.category].keys())) - 1)
-        if self.page < max_idx:
-            self.page += 1
+        
+        category_dict = UPGRADE_CATEGORIES.get(self.category, {})
+        num_upgrades = len(category_dict)
+        if num_upgrades > 0:
+            self.page = (self.page + 1) % num_upgrades
             self.update_buttons()
             await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
@@ -223,7 +227,7 @@ class UpgradeView(discord.ui.View):
                 
             total_luck = float(total_luck or 0.0)
             
-            embed.add_field(name="🍀 You have", value=f"**{total_luck:.2f}**\nLuck", inline=True)
+            embed.add_field(name="🍀 You have", value=f"**{format_number(total_luck)}**\nLuck", inline=True)
             embed.add_field(name="\u200b", value="\u200b", inline=True)
             embed.add_field(name="Tier", value=str(current_tier), inline=True)
         elif self.category == "clover":
@@ -257,11 +261,20 @@ class UpgradeView(discord.ui.View):
         labels = {getattr(c, "label", ""): c for c in self.children}
         prev_btn = labels.get("⬅️ Prev")
         next_btn = labels.get("➡️ Next")
+        
+        category_dict = UPGRADE_CATEGORIES.get(self.category, {})
+        num_upgrades = len(category_dict)
+        
         if prev_btn:
-            prev_btn.disabled = self.page == 0
+            prev_btn.disabled = num_upgrades <= 1
         if next_btn:
-            max_idx = max(0, len(list(UPGRADE_CATEGORIES.get(self.category, {}).keys())) - 1)
-            next_btn.disabled = self.page >= max_idx
+            next_btn.disabled = num_upgrades <= 1
+        
+        # Ensure page is within bounds after category switch
+        if num_upgrades > 0:
+            self.page = self.page % num_upgrades
+        else:
+            self.page = 0
 
 class UpgradesCommand(commands.Cog):
     def __init__(self, bot):
