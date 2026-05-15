@@ -27,6 +27,8 @@ class LeaderboardView(discord.ui.View):
                     child.style = discord.ButtonStyle.success if self.category == "rolls" else discord.ButtonStyle.primary
                 elif "Best Rarity" in child.label:
                     child.style = discord.ButtonStyle.success if self.category == "rarity" else discord.ButtonStyle.primary
+                elif "Most Discovered" in child.label:
+                    child.style = discord.ButtonStyle.success if self.category == "discovered" else discord.ButtonStyle.primary
 
     async def update_buttons_async(self):
         """Updates enabled/disabled state of pagination buttons"""
@@ -60,6 +62,13 @@ class LeaderboardView(discord.ui.View):
         await self.update_buttons_async()
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
+    @discord.ui.button(label="📋 Most Discovered", style=discord.ButtonStyle.primary, row=0)
+    async def show_discovered(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.category = "discovered"
+        self.page = 0
+        await self.update_buttons_async()
+        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=1)
     async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         max_pages = await self.get_max_pages()
@@ -83,9 +92,17 @@ class LeaderboardView(discord.ui.View):
         rarity_map = {name: i for i, (name, _, _) in enumerate(RARITIES)}
         
         await db._check_conn()
-        async with db.conn.execute("SELECT user_id, roll_count, highscore, luck_multi, max_luck FROM users") as cursor:
+        async with db.conn.execute("SELECT user_id, roll_count, highscore, luck_multi, max_luck, clover_multi, clovers_earned, luck_override FROM users") as cursor:
             users_rows = await cursor.fetchall()
-            users_map = {r[0]: {'roll_count': r[1], 'highscore': r[2], 'luck_multi': r[3], 'max_luck': r[4]} for r in users_rows}
+            users_map = {r[0]: {
+                'roll_count': r[1], 
+                'highscore': r[2], 
+                'luck_multi': r[3], 
+                'max_luck': r[4],
+                'clover_multi': r[5],
+                'clovers_earned': r[6],
+                'luck_override': r[7]
+            } for r in users_rows}
             
         async with db.conn.execute("SELECT user_id, category, upgrade_key, tier FROM user_upgrades") as cursor:
             upgrades_rows = await cursor.fetchall()
@@ -111,12 +128,20 @@ class LeaderboardView(discord.ui.View):
                     "upgrades": upgrades_map.get(user_id, {}),
                     "discovered": discovered_map.get(user_id, {}),
                     "luck_multi": data['luck_multi'],
-                    "max_luck": data['max_luck']
+                    "max_luck": data['max_luck'],
+                    "highscore": data['highscore'],
+                    "clover_multi": data['clover_multi'],
+                    "clovers_earned": data['clovers_earned'],
+                    "roll_count": data['roll_count'],
+                    "luck_override": data['luck_override']
                 }
                 
-                bonuses = await get_upgrade_effect(user_id, user_obj=user_obj)
-                base = data['luck_multi']
-                total_luck = (base + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
+                if data.get('luck_override'):
+                    total_luck = float(data['luck_override'])
+                else:
+                    bonuses = await get_upgrade_effect(user_id, user_obj=user_obj)
+                    base = data['luck_multi']
+                    total_luck = (base + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
                 val = total_luck
                 
             elif self.category == "rolls":
@@ -125,6 +150,9 @@ class LeaderboardView(discord.ui.View):
             elif self.category == "rarity":
                 highscore = data['highscore']
                 val = rarity_map.get(highscore, -1)
+                
+            elif self.category == "discovered":
+                val = len(discovered_map.get(user_id, {}))
             
             leaderboard_data.append((user_id, val))
         
@@ -146,6 +174,8 @@ class LeaderboardView(discord.ui.View):
             color, title, value_name = discord.Color.green(), "🏆 Luck Leaderboard", "🍀"
         elif self.category == "rolls":
             color, title, value_name = discord.Color.blue(), "🏆 Rolls Leaderboard", "🎰"
+        elif self.category == "discovered":
+            color, title, value_name = discord.Color.gold(), "🏆 Discovery Leaderboard", "📋"
         else:
             color, title, value_name = discord.Color.purple(), "🏆 Rarity Leaderboard", "💎"
         
@@ -173,7 +203,11 @@ class LeaderboardView(discord.ui.View):
                     formatted_value = RARITIES[int(value)][0] if value != -1 else "None"
                 
                 medal = "🥇 " if rank == 1 else "🥈 " if rank == 2 else "🥉 " if rank == 3 else f"#{rank} "
-                leaderboard_text += f"\n**{medal}{display_name}** - {value_name} **{formatted_value}**\n"
+                
+                if self.category == "discovered":
+                    leaderboard_text += f"\n**{medal}{display_name}**, [{int(value)}/{len(RARITIES)}]\n"
+                else:
+                    leaderboard_text += f"\n**{medal}{display_name}** - {value_name} **{formatted_value}**\n"
             
             embed.description = leaderboard_text
         
