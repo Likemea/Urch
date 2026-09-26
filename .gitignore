@@ -3,11 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
 # Environment Variables / Secrets
 .env
 .venv/
 env/
 venv/
+*.pem
 
 # SQLite Databases and temporary files
 *.db
@@ -25,3 +27,6 @@ Thumbs.db
 .google-cookie
 .code-workspace
 .agents/
+*.pyc
+logs/
+data/*.db

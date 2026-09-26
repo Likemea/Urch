@@ -9,57 +9,63 @@ import os
 import asyncio
 import aiohttp
 import json
+import config
+from typing import Optional
+
+class ProviderClientError(Exception):
+    def __init__(self, status: int, message: str):
+        self.status = status
+        self.message = message
+        super().__init__(f"Client error {status}: {message}")
 
 # ── Provider Registry ─────────────────────────────────────────────────────────
 PROVIDERS: dict = {
     "groq": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
-        "api_key": os.environ.get("GROQ_API_KEY", ""),
+        "api_key": config.GROQ_API_KEY,
     },
     "pollinations": {
         "url": "https://gen.pollinations.ai/v1/chat/completions",
         "image_url": "https://gen.pollinations.ai/image",
-        "api_key": os.environ.get("POLLINATIONS_API_KEY", ""),
+        "api_key": config.POLLINATIONS_API_KEY,
+    },
+    "google": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "api_key": config.GOOGLE_API_KEY,
     },
 }
 
 # ── Image Model Registry ──────────────────────────────────────────────────────
 IMAGE_MODELS: dict = {
+    "dreamshaper": {
+        "id": "dreamshaper", 
+        "disp": "DreamShaper 8 LCM",
+        "routable": True,
+        "router_info": "Default. Ultra-fast, Ultra-low-cost image generation."
+    },
     "flux": {
         "id": "flux", 
         "disp": "Flux Schnell",
-        "routable": True,
-        "router_info": "Legacy model; very fast but may not be coherent. Bad for text. Supports negative prompts."
+        "routable": False,
+        "router_info": "Legacy model; very fast but may not be coherent. Bad for text."
     },
     "zimage": {
         "id": "zimage", 
         "disp": "Z-Image Turbo",
-        "routable": True,
-        "router_info": "Fast and versatile default model. Good for all-around use cases. Has a decent sense of text, but not great. Supports negative prompts."
+        "routable": False,
+        "router_info": "Fast and versatile model. Good for all-around use cases. Has a decent sense of text, but not great."
     },
     "gptimage": {
         "id": "gptimage", 
         "disp": "GPT Image 1 Mini",
-        "routable": True,
+        "routable": False,
         "router_info": "DALL-E style model. Good for artistic, stylized, and creative concepts. High consistency."
     },
-    "gptimage-large": {
-        "id": "gptimage-large", 
-        "disp": "GPT Image 1.5",
+    "gpt-image-2": {
+        "id": "gpt-image-2", 
+        "disp": "GPT Image 2",
         "routable": False,
-        "router_info": "Large version of GPT Image. Best for complex artistic prompts requiring high detail."
-    },
-    "wan-image": {
-        "id": "wan-image", 
-        "disp": "Wan 2.7 Image",
-        "routable": False,
-        "router_info": "Specialized model for cinematic, dramatic, and atmospheric visuals."
-    },
-    "qwen-image": {
-        "id": "qwen-image", 
-        "disp": "Qwen Image Plus",
-        "routable": False,
-        "router_info": "Optimized for anime, digital art, and illustration styles."
+        "router_info": "The most powerful image model."
     },
     "klein": {
         "id": "klein", 
@@ -90,27 +96,15 @@ IMAGE_MODELS: dict = {
 #   extra_params     – Extra payload fields always injected for this model
 MODELS: dict = {
     # ── Groq ─────────────────────────────────────────────────────────────────
-    "l3.1-8b": {
-        "id": "llama-3.1-8b-instant",
-        "disp": "Llama 3.1 8B",
-        "provider": "groq",
-        "vision": False,
-        "reasoning_effort": False,
-        "tools": False,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Lowest weight. Best for quick responses, chit-chat, simple Q&A, greetings, and nonsensical inputs.",
-    },
     "gpt-oss-20b": {
         "id": "openai/gpt-oss-20b",
         "disp": "GPT OSS 20B",
         "provider": "groq",
         "vision": False,
         "reasoning_effort": True,
-        "tools": False,
+        "tools": True,
         "response_format": True,
         "routable": True,
-        "extra_params": {"reasoning_effort": "low"},
         "router_info": "Low-Medium weight. Features Chain-of-Thought (CoT) reasoning. Good for intermediate complexity and multi-step problem solving.",
     },
     "gpt-oss-120b": {
@@ -122,168 +116,230 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "extra_params": {
-            "reasoning_effort": "medium",
-            "tools": [{"type": "code_interpreter"}],
-        },
         "router_info": "Medium-High weight. Advanced complexity, native tool calling, and extended CoT. Ideal for agentic workflows.",
     },
-    "l4-17": {
-        "id": "meta-llama/llama-4-scout-17b-16e-instruct",
-        "disp": "Llama 4 Scout",
+    "qwen3.8-27b": {
+        "id": "qwen/qwen3.8-27b",
+        "disp": "Qwen3.8 27B",
         "provider": "groq",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Medium-High weight. Alibaba's best open source model. Fast, cheap, and versatile.",
+    },
+
+    # ── Pollinations ──────────────────────────────────────────────────────────
+    "llama3.1-8b": {
+        "id": "community/ZapGaming/llama3.1-8b-xturbo",
+        "disp": "Llama 3.1 8B",
+        "provider": "pollinations",
+        "vision": False,
+        "reasoning_effort": False,
+        "tools": False,
+        "response_format": False,
+        "routable": True,
+        "router_info": "Lowest weight. 1K+ tokens per second.",
+    },
+    "muse-glimmer": {
+        "id": "vendouple/muse-glimmer-30b:free",
+        "disp": "Muse Glimmer",
+        "provider": "pollinations",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": False,
+        "routable": True,
+        "router_info": "Lowest weight. Meta's open-weight agentic model.",
+    },
+    "ministral-3-14b": {
+        "id": "mikl-shortcuts/ministral-3",
+        "disp": "Ministral 3 14B",
+        "provider": "pollinations",
         "vision": True,
         "reasoning_effort": False,
         "tools": False,
         "response_format": False,
         "routable": True,
-        "router_info": "Medium weight. Supports vision. Good for image analysis and tasks that require visual input.",
+        "router_info": "Lowest weight. Mistral's open-source lightweight model. Decent all-rounder.",
     },
-    "q32": {
-        "id": "qwen/qwen3-32b",
-        "disp": "Qwen3 32B",
-        "provider": "groq",
+    "gemini-2.5-flash": {
+        "id": "community/AkshayCoder48/gemini-2.5-flash",
+        "disp": "Gemini 2.5 Flash",
+        "provider": "pollinations",
         "vision": False,
         "reasoning_effort": True,
-        "tools": False,
-        "response_format": True,
-        "routable": False,
-        "extra_params": {"reasoning_effort": "none"},
-        "router_info": "",
-    },
-
-    # ── Pollinations ──────────────────────────────────────────────────────────
-    "gpt-5.4-nano": {
-        "id": "openai",
-        "disp": "GPT-5.4 Nano",
-        "provider": "pollinations",
-        "vision": True,
-        "reasoning_effort": False,
-        "tools": False,
-        "response_format": True,
+        "tools": True,
+        "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Efficient and reliable model for general tasks. It's very fast and supports vision.",
+        "router_info": "Lowest weight. Google's legacy Flash model. Optimized for conversation.",
     },
-    "n-m": {
+    "gpt-4o": {
+        "id": "community/AkshayCoder48/gpt-4o-latest",
+        "disp": "GPT-4o",
+        "provider": "pollinations",
+        "vision": False,
+        "reasoning_effort": False,
+        "tools": True,
+        "response_format": False,
+        "routable": True,
+        "router_info": "Lowest weight. The all-round workhorse for chat, writing and coding.",
+    },
+    "deepseek-v3": {
+        "id": "community/AkshayCoder48/deepseek-v3",
+        "disp": "Deepseek V3",
+        "provider": "pollinations",
+        "vision": False,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": False,
+        "routable": True,
+        "router_info": "Lowest weight. Efficient 685B MoE workhorse for chat, coding, and tool use.",
+    },
+    "step-3.7-flash": {
+        "id": "community/AkshayCoder48/step-3.7-flash",
+        "disp": "Step 3.7 Flash",
+        "provider": "pollinations",
+        "vision": False,
+        "reasoning_effort": False,
+        "tools": True,
+        "response_format": False,
+        "routable": True,
+        "router_info": "Lowest weight. Fast StepFun model for high-volume chat and tool-calling workloads. No refusals on creative or edgy prompts.",
+    },
+    "laguna-s2.1": {
+        "id": "YoannDev90/poolside-laguna-s-2.1:free",
+        "disp": "Laguna S 2.1",
+        "provider": "pollinations",
+        "vision": False,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": False,
+        "routable": True,
+        "router_info": "Lowest weight. Poolside's open-source lightweight model. Optimized for conversation.",
+    },
+    "nova-micro": {
         "id": "nova-fast",
         "disp": "Nova Micro",
         "provider": "pollinations",
         "vision": False,
         "reasoning_effort": False,
-        "tools": False,
+        "tools": True,
         "response_format": False,
         "routable": True,
         "router_info": "Lowest weight. Extremely fast and lightweight model for simple, low-complexity interactions.",
     },
-    "n2-l": {
-        "id": "nova",
-        "disp": "Nova 2 Lite",
+    "nemotron-3.5-lightning": {
+        "id": "nemotron-3.5-lightning",
+        "disp": "Nemotron 3.5 Lightning",
         "provider": "pollinations",
         "vision": False,
         "reasoning_effort": True,
-        "tools": False,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Low weight. Small and fast model. Suitable for analytical queries. Supports reasoning.",
-    },
-    "q3-c": {
-        "id": "qwen-coder",
-        "disp": "Qwen3 Coder 30B",
-        "provider": "pollinations",
-        "vision": False,
-        "reasoning_effort": False,
-        "tools": False,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Low weight. Fast, specialized coding model.",
-    },
-    "q3-v": {
-        "id": "qwen-vision",
-        "disp": "Qwen3 VL 30B A3B Thinking",
-        "provider": "pollinations",
-        "vision": True,
-        "reasoning_effort": True,
-        "tools": False,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Low weight. Multimodal model that supports reasoning. Good for efficient image analyses.",
-    },
-    "p-s": {
-        "id": "perplexity-fast",
-        "disp": "Perplexity Sonar",
-        "provider": "pollinations",
-        "vision": False,
-        "reasoning_effort": False,
         "tools": True,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Low-medium weight. Fast, specialized search engine model. Best for up-to-date knowledge and information.",
-    },
-    "gemini-2.5-flash-lite": {
-        "id": "gemini-fast",
-        "disp": "Gemini 2.5 Flash Lite",
-        "provider": "pollinations",
-        "vision": True,
-        "reasoning_effort": False,
-        "tools": True,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Low-medium weight. Very fast, multimodal model, also surprisingly capable. Supports vision and tool use.",
-    },
-    "m3.1-s": {
-        "id": "mistral",
-        "disp": "Mistral Small 3.1",
-        "provider": "pollinations",
-        "vision": True,
-        "reasoning_effort": False,
-        "tools": False,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Low-medium weight. Compact and efficient model for standard conversational tasks. Supports vision.",
-    },
-    "grok-4.20": {
-        "id": "grok",
-        "disp": "Grok 4.20 Non-reasoning",
-        "provider": "pollinations",
-        "vision": True,
-        "reasoning_effort": False,
-        "tools": False,
         "response_format": False,
         "routable": True,
-        "router_info": "Medium-high weight. Powerful general-purpose model with broad knowledge, Grok is known for its rebellious, quirky personality. Supports vision.",
+        "router_info": "Lowest weight. Fast open-weight reasoning for high-volume agent tasks, tool use and structured output.",
     },
-    "m3-l": {
-        "id": "mistral-large",
-        "disp": "Mistral Large 3",
+    "gpt-5.4-nano": {
+        "id": "openai",
+        "disp": "GPT-5.4 Nano",
         "provider": "pollinations",
         "vision": True,
         "reasoning_effort": True,
-        "tools": False,
+        "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Medium-high weight. High-performance model with advanced reasoning for complex logical tasks. Supports vision and reasoning.",
+        "router_info": "Low weight. Efficient and reliable model for general tasks. It's very fast and supports vision.",
     },
-    "mx2.7": {
+    "glm-5.3-flash": {
+        "id": "z-ai/glm-5.3-flash",
+        "disp": "GLM 5.3 Flash",
+        "provider": "pollinations",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Low weight. Efficient and reliable model for general tasks. It's very fast and supports vision.",
+    },
+    "deepseek-v4.1-flash": {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "disp": "Deepseek V4.1 Flash",
+        "provider": "pollinations",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Low-medium weight. Frontier reasoning & coding. Very cheap.",
+    },
+    "gpt-5.6-luna": {
+        "id": "gpt-5.6-luna",
+        "disp": "GPT-5.6 Luna",
+        "provider": "pollinations",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Medium weight. Well-rounded, cheap and fast model with good agentic capabilities.",
+    },
+    "minimax": {
         "id": "minimax",
-        "disp": "Minimax M2.7",
-        "provider": "pollinations",
-        "vision": False,
-        "reasoning_effort": True,
-        "tools": False,
-        "response_format": True,
-        "routable": True,
-        "router_info": "Medium-high weight. High-performance model with advanced reasoning for complex logical tasks. Supports reasoning.",
-    },
-    "k2.5": {
-        "id": "kimi",
-        "disp": "Kimi K2.5",
+        "disp": "Minimax M3",
         "provider": "pollinations",
         "vision": True,
         "reasoning_effort": True,
-        "tools": False,
+        "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "High weight. Sophisticated model with long-context reasoning and multimodal input support. Supports vision and reasoning.",
+        "router_info": "Medium-high weight. Coding, agentic & multi-language. 1M context reasoning.",
+    },
+    # ── Google AI Studio ──────────────────────────────────────────────────────
+    "gemma-4-26b-a4b-it": {
+        "id": "gemma-4-26b-a4b-it",
+        "disp": "Gemma 4 26B A4B IT",
+        "provider": "google",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Low weight. A Mixture-of-Experts model that activates only 4B parameters per inference, delivering high-performance reasoning with a fraction of the memory cost — ideal for cost-efficient, high-throughput server deployments.",
+    },
+    "gemma-4-31b-it": {
+        "id": "gemma-4-31b-it",
+        "disp": "Gemma 4 31B IT",
+        "provider": "google",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Low weight. Google DeepMind's flagship open-weight dense model, purpose-built for maximum quality in data center environments with a 256K context window and advanced long-context architecture.",
+    },
+    "gemini-3.5-flash-lite": {
+        "id": "gemini-3.5-flash-lite",
+        "disp": "Gemini 3.5 Flash Lite",
+        "provider": "google",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "Low-medium weight. Ultra-lightweight and extremely fast, optimized for high-volume agentic tasks, translation, and simple data processing.",
+    },
+    "gemini-3.8-flash": {
+        "id": "gemini-3.8-flash",
+        "disp": "Gemini 3.8 Flash",
+        "provider": "google",
+        "vision": True,
+        "reasoning_effort": True,
+        "tools": True,
+        "response_format": True,
+        "routable": True,
+        "router_info": "High weight. Google's most intelligent model for sustained frontier performance in agentic and coding tasks.",
     },
 }
 
@@ -302,7 +358,6 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
     """
     clean = dict(payload)
 
-    # Always ensure model ID comes from caps if available
     if "id" in caps:
         clean["model"] = caps["id"]
 
@@ -317,61 +372,138 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
             if payload_key == "tools":
                 clean.pop("tool_choice", None)
 
+    # Never force json_object mode when using native tool calling
+    if clean.get("tools"):
+        clean.pop("response_format", None)
+
+    if clean.get("reasoning_effort") == "none":
+        clean.pop("reasoning_effort", None)
+
+    # Sanitize message history based on tool capability
+    if "messages" in clean and isinstance(clean["messages"], list):
+        sanitized_messages = []
+        supports_tools = caps.get("tools", False)
+        for msg in clean["messages"]:
+            if not isinstance(msg, dict):
+                sanitized_messages.append(msg)
+                continue
+            
+            msg_copy = dict(msg)
+            role = msg_copy.get("role")
+            
+            if not supports_tools:
+                # If model doesn't support tools, convert tool output messages to user role
+                if role == "tool":
+                    tool_name = msg_copy.get("name", "tool")
+                    tool_content = msg_copy.get("content", "")
+                    sanitized_messages.append({
+                        "role": "user",
+                        "content": f"[Tool Result for {tool_name}]:\n{tool_content}"
+                    })
+                    continue
+                elif role == "assistant" and "tool_calls" in msg_copy:
+                    # Strip tool_calls and provide synthetic text if content is empty
+                    calls = msg_copy.pop("tool_calls", [])
+                    if not msg_copy.get("content"):
+                        names = ", ".join([c.get("function", {}).get("name", "") for c in calls if isinstance(c, dict)])
+                        msg_copy["content"] = f"[Invoked tools: {names}]"
+            
+            sanitized_messages.append(msg_copy)
+        clean["messages"] = sanitized_messages
+
     return clean
 
+# ── Global HTTP Session ───────────────────────────────────────────────────────
+_session: Optional[aiohttp.ClientSession] = None
+
+async def get_session() -> aiohttp.ClientSession:
+    """Get the shared, global aiohttp.ClientSession."""
+    global _session
+    if _session is None or _session.closed:
+        _session = aiohttp.ClientSession()
+    return _session
+
+async def close_session():
+    """Gracefully close the global aiohttp.ClientSession."""
+    global _session
+    if _session is not None and not _session.closed:
+        await _session.close()
+    _session = None
+
 # ── Low-level HTTP ────────────────────────────────────────────────────────────
-async def _post(provider_key: str, payload: dict, timeout: int = 20, stream: bool = False):
+async def _post(provider_key: str, payload: dict, timeout: int = 20):
     """Single POST to a provider. Raises on HTTP/connection errors."""
     cfg = PROVIDERS[provider_key]
     headers = {
-        "Authorization": f"Bearer {cfg['api_key']}",
         "Content-Type": "application/json",
     }
+    if cfg.get("api_key"):
+        headers["Authorization"] = f"Bearer {cfg['api_key']}"
     
-    # We use a longer timeout for streaming connections
-    total_timeout = 60 if stream else timeout
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            cfg["url"], headers=headers, json=payload,
-            timeout=aiohttp.ClientTimeout(total=total_timeout)
-        ) as resp:
-            resp.raise_for_status()
-            if stream:
-                return resp 
-            return await resp.json()
+    session = await get_session()
+    async with session.post(
+        cfg["url"], headers=headers, json=payload,
+        timeout=aiohttp.ClientTimeout(total=timeout)
+    ) as resp:
+        if 400 <= resp.status < 500:
+            body = await resp.text()
+            raise ProviderClientError(resp.status, body)
+        resp.raise_for_status()
+        return await resp.json()
 
 # ── User-facing Model Call ────────────────────────────────────────────────────
-FALLBACK_MODEL_KEY = "l3.1-8b"  # llama-3.1-8b-instant on Groq
+FALLBACK_MODEL_KEY = "llama3.1-8b"
 
 async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tuple:
     """
-    Call the provider for `model_key` with retry logic.
-    On total failure, falls back to FALLBACK_MODEL_KEY non-interruptingly.
+    Call the provider for `model_key` with retry and fallback logic.
+    Supports a 3-stage fallback flow:
+      1. Normal payload (sanitized) for the selected model.
+      2. If 4xx error occurs, retry immediately with stripped custom parameters (no temperature, top_p, reasoning_effort, max_completion_tokens).
+      3. If that also fails, fallback to FALLBACK_MODEL_KEY
     Returns (response_json, model_id_used).
     """
     model_info = MODELS.get(model_key, MODELS[FALLBACK_MODEL_KEY])
-    clean = sanitize_payload(payload, model_info)
     provider_key = model_info["provider"]
+    clean = sanitize_payload(payload, model_info)
 
+    # Stage 1: Try normal payload
     for attempt in range(retries):
         try:
             resp = await _post(provider_key, clean)
             return resp, model_info["id"]
+        except ProviderClientError as pce:
+            print(f"[Provider] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries} "
+                  f"for {model_info['id']} ({provider_key}): {pce.message}")
+            break
         except Exception as e:
             print(f"[Provider] Attempt {attempt + 1}/{retries} failed "
                   f"for {model_info['id']} ({provider_key}): {e}")
             if attempt < retries - 1:
                 await asyncio.sleep(2 + attempt * 2)
+            else:
+                break
 
-    # Hard fallback
+    # Stage 2: Try stripped parameters (same model)
+    print(f"[Provider] Retrying {model_info['id']} with stripped parameters...")
+    stripped_payload = dict(payload)
+    for k in ["temperature", "top_p", "reasoning_effort", "max_completion_tokens"]:
+        stripped_payload.pop(k, None)
+    clean_stripped = sanitize_payload(stripped_payload, model_info)
+    try:
+        resp = await _post(provider_key, clean_stripped)
+        return resp, model_info["id"]
+    except Exception as e:
+        print(f"[Provider] Stripped parameters retry failed for {model_info['id']}: {e}")
+
+    # Stage 3: Hard fallback
     fallback = MODELS[FALLBACK_MODEL_KEY]
-    print(f"⚠️ All retries exhausted. Falling back to {fallback['id']}")
+    print(f"⚠️ All stages failed. Falling back to {fallback['id']}")
     fallback_payload = sanitize_payload({
         "messages": payload.get("messages", []),
-        "temperature": payload.get("temperature", 0.7),
-        "top_p": payload.get("top_p", 0.4),
-        "max_completion_tokens": payload.get("max_completion_tokens", 512),
+        "temperature": 0.7,
+        "top_p": 0.4,
+        "max_completion_tokens": 1000,
     }, fallback)
     try:
         resp = await _post(fallback["provider"], fallback_payload)
@@ -418,54 +550,120 @@ async def call_model_direct(
             if attempt < retries - 1:
                 await asyncio.sleep(1 + attempt)
 
-    raise last_exc
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"Direct model call failed with 0 retries configured for {model_id}")
 
 # ── Streaming Model Call ──────────────────────────────────────────────────────
 async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
     """
     Call the provider for `model_key` and yield text chunks.
-    Automatically handles sanitization and 'stream': True payload.
+    On 4xx errors, retries with stripped params, then falls back
     """
     model_info = MODELS.get(model_key, MODELS[FALLBACK_MODEL_KEY])
+    provider_key = model_info["provider"]
     clean = sanitize_payload(payload, model_info)
     clean["stream"] = True
-    provider_key = model_info["provider"]
+
     cfg = PROVIDERS[provider_key]
     headers = {
-        "Authorization": f"Bearer {cfg['api_key']}",
         "Content-Type": "application/json",
     }
+    if cfg.get("api_key"):
+        headers["Authorization"] = f"Bearer {cfg['api_key']}"
 
+    session = await get_session()
+    
+    async def consume_stream(response):
+        async for line in response.content:
+            line_text = line.decode('utf-8').strip()
+            if not line_text:
+                continue
+            if line_text.startswith("data: "):
+                data_str = line_text[6:]
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                    if "choices" in chunk and chunk["choices"]:
+                        delta = chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                except json.JSONDecodeError:
+                    continue
+
+    # Stage 1: Try normal payload
+    success = False
     for attempt in range(retries):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    cfg["url"], headers=headers, json=clean,
-                    timeout=aiohttp.ClientTimeout(total=60)
-                ) as resp:
-                    resp.raise_for_status()
-                    async for line in resp.content:
-                        line_text = line.decode('utf-8').strip()
-                        if not line_text:
-                            continue
-                        if line_text.startswith("data: "):
-                            data_str = line_text[6:]
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                chunk = json.loads(data_str)
-                                if "choices" in chunk and chunk["choices"]:
-                                    delta = chunk["choices"][0].get("delta", {})
-                                    content = delta.get("content", "")
-                                    if content:
-                                        yield content
-                            except json.JSONDecodeError:
-                                continue
-            return # Success
+            async with session.post(
+                cfg["url"], headers=headers, json=clean,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                if 400 <= resp.status < 500:
+                    body = await resp.text()
+                    raise ProviderClientError(resp.status, body)
+                resp.raise_for_status()
+                async for chunk in consume_stream(resp):
+                    yield chunk
+                success = True
+                return
+        except ProviderClientError as pce:
+            print(f"[Provider:Stream] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries}: {pce.message}")
+            break
         except Exception as e:
-            print(f"[Provider:Stream] Attempt {attempt + 1}/{retries} failed "
-                  f"for {model_info['id']} ({provider_key}): {e}")
+            print(f"[Provider:Stream] Attempt {attempt + 1}/{retries} failed: {e}")
             if attempt < retries - 1:
-                await asyncio.sleep(1 + attempt)
-            else:
-                raise
+                await asyncio.sleep(2 + attempt * 2)
+
+    # Stage 2: Stripped params (same model)
+    if not success:
+        print(f"[Provider:Stream] Retrying {model_info['id']} with stripped parameters...")
+        stripped_payload = dict(payload)
+        for k in ["temperature", "top_p", "reasoning_effort", "max_completion_tokens"]:
+            stripped_payload.pop(k, None)
+        clean_stripped = sanitize_payload(stripped_payload, model_info)
+        clean_stripped["stream"] = True
+        try:
+            async with session.post(
+                cfg["url"], headers=headers, json=clean_stripped,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                if 400 <= resp.status < 500:
+                    body = await resp.text()
+                    raise ProviderClientError(resp.status, body)
+                resp.raise_for_status()
+                async for chunk in consume_stream(resp):
+                    yield chunk
+                success = True
+                return
+        except Exception as e:
+            print(f"[Provider:Stream] Stripped parameters retry failed for {model_info['id']}: {e}")
+
+    # Stage 3: Fallback
+    if not success:
+        fallback = MODELS[FALLBACK_MODEL_KEY]
+        print(f"⚠️ [Provider:Stream] Falling back to {fallback['id']}")
+        fallback_payload = sanitize_payload({
+            "messages": payload.get("messages", []),
+            "temperature": 0.7,
+            "top_p": 0.4,
+            "max_completion_tokens": 1000,
+        }, fallback)
+        fallback_payload["stream"] = True
+        
+        f_cfg = PROVIDERS[fallback["provider"]]
+        f_headers = {
+            "Content-Type": "application/json",
+        }
+        if f_cfg.get("api_key"):
+            f_headers["Authorization"] = f"Bearer {f_cfg['api_key']}"
+            
+        async with session.post(
+            f_cfg["url"], headers=f_headers, json=fallback_payload,
+            timeout=aiohttp.ClientTimeout(total=60)
+        ) as resp:
+            resp.raise_for_status()
+            async for chunk in consume_stream(resp):
+                yield chunk

@@ -4,13 +4,14 @@ ROLL_UPGRADES = {
     "multi_roll": {
         "name": "🎰 Multi Roll",
         "description": "+1 extra 🎰roll per tier",
-        "max_tier": 5,
+        "max_tier": 6,
         "requirements": {
             1: {"hot": 8, "pi": 4},
             2: {"ruby": 5, "mythic": 4, "kromer": 2, "unique": 1},
             3: {"good": 50, "very_nice": 4, "ultimate": 3, "exode": 2, "godly": 1},
             4: {"mythic": 65, "unique": 30, "extreme": 14, "superman": 6, "archidon": 4, "continental": 3, "enigmatic": 2},
-            5: {"archaic": 76, "extreme": 53, "exotic": 27, "godly": 15, "continental": 11, "otherworldly": 8, "53_4": 6, "ascendant": 5, "negus": 3, "skilled": 2, "unstoppable": 1}
+            5: {"archaic": 76, "extreme": 53, "exotic": 27, "godly": 15, "continental": 11, "otherworldly": 8, "53_4": 6, "ascendant": 5, "negus": 3, "skilled": 2, "unstoppable": 1},
+            6: {"53_2": 532, "triangle": 333, "exode": 150, "unusual": 100, "enigmatic": 80, "unfathomable": 56, "redacted": 33, "unstoppable": 21, "atmospheric": 12}
         },
         "effect": lambda tier, user: {"multi_roll": tier},
     },

@@ -93,6 +93,12 @@ class SafetyDashboard(discord.ui.View):
         embed = await view.build_embed()
         await interaction.response.edit_message(embed=embed, view=view)
     
+    @discord.ui.button(label="User Data", style=discord.ButtonStyle.primary, emoji="👥", row=0)
+    async def user_data_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = UserManagerPanel(self.bot, self)
+        embed = await view.build_embed()
+        await interaction.response.edit_message(embed=embed, view=view)
+    
     @discord.ui.button(label="Kill Switch", style=discord.ButtonStyle.danger, emoji="⛔", row=1)
     async def kill_switch_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         rl = self._get_rl()
@@ -294,8 +300,8 @@ class PurgeConfirmView(discord.ui.View):
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             async with db._lock:
-                await db.conn.execute("DELETE FROM conversation_history")
-                await db.conn.commit()
+                async with db.conn.execute("DELETE FROM conversation_history"):
+                    await db.conn.commit()
             embed = await self.parent.build_embed()
             embed.set_footer(text="✅ All conversation history has been purged.")
             await interaction.response.edit_message(embed=embed, view=self.parent)
@@ -478,8 +484,8 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
                 # Wipe the entire guild from DB, regardless of purge results
                 try:
                     async with db._lock:
-                        await db.conn.execute("DELETE FROM conversation_history WHERE guild_id = ?", (guild_id_str,))
-                        await db.conn.commit()
+                        async with db.conn.execute("DELETE FROM conversation_history WHERE guild_id = ?", (guild_id_str,)):
+                            await db.conn.commit()
                     db_wiped_msg = f"\nAll database entries for Guild `{guild_id_str}` have been cleared."
                 except Exception as e:
                     db_wiped_msg = f"\n⚠️ *Failed to clear database entries: {e}*"
@@ -505,6 +511,204 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
             await interaction.followup.send("❌ Invalid ID format.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"⚠️ Operation stopped gracefully due to unexpected error: {e}", ephemeral=True)
+
+
+# ───────────────────────────────
+# USER MANAGEMENT PANEL
+# ───────────────────────────────
+
+KEY_TO_TABLE = {
+    "roll_count": "users",
+    "highscore": "users",
+    "luck_multi": "users",
+    "max_luck": "users",
+    "clover_multi": "users",
+    "clover_every": "users",
+    "clovers_earned": "users",
+    "luck_override": "users",
+    "autoroll_active": "users",
+    "max_completion_tokens": "user_params",
+    "temperature": "user_params",
+    "top_p": "user_params",
+    "model": "user_params",
+    "reasoning": "user_params",
+}
+
+class UserManagerPanel(discord.ui.View):
+    def __init__(self, bot, parent):
+        super().__init__(timeout=600)
+        self.bot = bot
+        self.parent = parent
+    
+    async def build_embed(self) -> discord.Embed:
+        try:
+            stats = await db.get_general_stats()
+        except Exception:
+            stats = {"total_users": "?", "total_inventory_items": "?", "total_clovers": "?"}
+        
+        desc = f"**Total Users:** {stats.get('total_users', '?')}\n"
+        desc += f"**Total Items Discovered:** {stats.get('total_inventory_items', '?')}\n"
+        desc += f"**Total Clovers in Economy:** {stats.get('total_clovers', '?')}\n\n"
+        desc += "Use the buttons below to manage specific user data or apply global changes."
+        
+        embed = discord.Embed(title="👥 User Data Management", description=desc, color=discord.Color.blue())
+        return embed
+    
+    @discord.ui.button(label="Inspect User", style=discord.ButtonStyle.secondary, emoji="🔍", row=0)
+    async def inspect_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(UserInspectModal(self))
+        
+    @discord.ui.button(label="Modify Value", style=discord.ButtonStyle.secondary, emoji="✏️", row=0)
+    async def modify_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(UserModifyModal(self))
+        
+    @discord.ui.button(label="Delete User", style=discord.ButtonStyle.danger, emoji="🗑️", row=1)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(UserDeleteModal(self))
+        
+    @discord.ui.button(label="Global Reset", style=discord.ButtonStyle.danger, emoji="🧨", row=1)
+    async def reset_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = GlobalResetConfirmView(self.bot, self)
+        embed = discord.Embed(
+            title="☢️ DANGER: Global Reset",
+            description="This will wipe **ALL** user progress, luck, items, and settings.\n\n**THIS ACTION IS IRREVERSIBLE.**",
+            color=discord.Color.red()
+        )
+        await interaction.response.edit_message(embed=embed, view=view)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩", row=1)
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = await self.parent.build_overview_embed()
+        await interaction.response.edit_message(embed=embed, view=self.parent)
+
+class UserInspectModal(discord.ui.Modal, title="Inspect User Data"):
+    user_id_input = discord.ui.TextInput(label="User ID", placeholder="Enter Discord ID...", min_length=17, max_length=20, required=True)
+    
+    def __init__(self, panel):
+        super().__init__()
+        self.panel = panel
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id = self.user_id_input.value
+        try:
+            data = await db.get_user_data(user_id)
+            params = await db.get_user_params(user_id)
+            
+            if not data:
+                return await interaction.response.send_message(f"❌ No user data found for `{user_id}`.", ephemeral=True)
+            
+            # Format main data
+            main_info = f"**Rolls:** {data.get('roll_count', 0)}\n"
+            main_info += f"**Luck Multi:** {data.get('luck_multi', 1.0)}x\n"
+            main_info += f"**Max Luck:** {data.get('max_luck', 1.0)}x\n"
+            main_info += f"**Clovers:** {data.get('currencies', {}).get('clovers', 0)}\n"
+            main_info += f"**Autoroll:** {'Enabled' if data.get('autoroll_active') else 'Disabled'}"
+            
+            # Format params
+            param_info = f"**Model:** {params.get('model', 'Auto')}\n"
+            param_info += f"**Temp:** {params.get('temperature', 0.75)}\n"
+            param_info += f"**Tokens:** {params.get('max_completion_tokens', 1000)}\n"
+            param_info += f"**Persona:** {params.get('active_persona', 'Default')}"
+            
+            embed = discord.Embed(title=f"👤 Data for {user_id}", color=discord.Color.green())
+            embed.add_field(name="Main Stats", value=main_info, inline=True)
+            embed.add_field(name="AI Params", value=param_info, inline=True)
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+
+class UserModifyModal(discord.ui.Modal, title="Modify User/Global Value"):
+    scope_input = discord.ui.TextInput(label="Scope (User ID or 'global')", placeholder="global", default="global", required=True)
+    key_input = discord.ui.TextInput(label="Key (e.g. temperature, luck_multi)", placeholder="temperature", required=True)
+    value_input = discord.ui.TextInput(label="New Value", placeholder="1.0", required=True)
+    
+    def __init__(self, panel):
+        super().__init__()
+        self.panel = panel
+
+    async def on_submit(self, interaction: discord.Interaction):
+        scope = self.scope_input.value.lower()
+        key = self.key_input.value.lower()
+        raw_val = self.value_input.value
+        
+        user_id = None if scope == "global" else scope
+        
+        table = KEY_TO_TABLE.get(key)
+        if not table:
+            return await interaction.response.send_message(f"❌ Unknown key: `{key}`. Check `KEY_TO_TABLE` in code.", ephemeral=True)
+        
+        # Try to infer type
+        try:
+            if "." in raw_val:
+                value = float(raw_val)
+            elif raw_val.isdigit():
+                value = int(raw_val)
+            elif raw_val.lower() in ["true", "false"]:
+                value = 1 if raw_val.lower() == "true" else 0
+            else:
+                value = raw_val
+        except ValueError:
+            value = raw_val
+
+        try:
+            await db.update_user_value(table, key, value, user_id)
+            scope_str = "Globally" if not user_id else f"for user `{user_id}`"
+            await interaction.response.send_message(f"✅ Updated `{key}` to `{value}` {scope_str}.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+
+class UserDeleteModal(discord.ui.Modal, title="Delete User Data"):
+    user_id_input = discord.ui.TextInput(label="User ID", placeholder="Enter Discord ID...", min_length=17, max_length=20, required=True)
+    
+    def __init__(self, panel):
+        super().__init__()
+        self.panel = panel
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id = self.user_id_input.value
+        view = UserDeleteConfirmView(user_id, self.panel)
+        embed = discord.Embed(
+            title="⚠️ Confirm Deletion",
+            description=f"Are you sure you want to delete **ALL** data for user `{user_id}`?\nThis cannot be undone.",
+            color=discord.Color.orange()
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+class UserDeleteConfirmView(discord.ui.View):
+    def __init__(self, user_id, panel):
+        super().__init__(timeout=30)
+        self.user_id = user_id
+        self.panel = panel
+    
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            await db.delete_user_data(self.user_id)
+            await interaction.response.edit_message(content=f"✅ User `{self.user_id}` data wiped.", embed=None, view=None)
+        except Exception as e:
+            await interaction.response.edit_message(content=f"❌ Error: {e}", embed=None, view=None)
+
+class GlobalResetConfirmView(discord.ui.View):
+    def __init__(self, bot, panel):
+        super().__init__(timeout=30)
+        self.bot = bot
+        self.panel = panel
+    
+    @discord.ui.button(label="Yes, RESET EVERYTHING", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            await db.reset_all_user_data()
+            embed = await self.panel.build_embed()
+            embed.set_footer(text="✅ All user data has been factory reset.")
+            await interaction.response.edit_message(embed=embed, view=self.panel)
+        except Exception as e:
+            await interaction.response.edit_message(content=f"❌ Error: {e}", embed=None, view=None)
+    
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = await self.panel.build_embed()
+        await interaction.response.edit_message(embed=embed, view=self.panel)
 
 async def setup(bot):
     await bot.add_cog(SafetyCommand(bot))

@@ -15,10 +15,20 @@ from collections import defaultdict
 DEFAULT_TIER_LIMITS = {
     "light": {
         "models": [
-            "llama-3.1-8b-instant",
+            "community/ZapGaming/llama3.1-8b-xturbo",
+            "vendouple/muse-glimmer-30b:free",
+            "mikl-shortcuts/ministral-3",
+            "community/AkshayCoder48/gemini-2.5-flash",
+            "community/AkshayCoder48/gpt-4o-latest",
+            "community/AkshayCoder48/deepseek-v3",
+            "community/AkshayCoder48/step-3.7-flash",
+            "YoannDev90/laguna-s-2.1:free",
             "openai",
-            "nova",
-            "nova-fast"
+            "nova-fast",
+            "nemotron-3.5-lightning",
+            "gemma-4-26b-a4b-it",
+            "gemma-4-31b-it",
+            "gemini-3.5-flash-lite"
             ],
         "rps": 0.45,
         "rpm": 6
@@ -26,11 +36,10 @@ DEFAULT_TIER_LIMITS = {
     "medium": {
         "models": [
             "openai/gpt-oss-20b",
-            "llama-3.3-70b-versatile",
-            "qwen/qwen3-32b",
-            "meta-llama/llama-4-scout-17b-16e-instruct",
-            "gemini-fast",
-            "mistral"
+            "deepseek/deepseek-v4.1-flash",
+            "qwen3.8-27b",
+            "gpt-5.6-luna",
+            "z-ai/glm-5.3-flash"
         ],
         "rps": 0.25,
         "rpm": 4
@@ -38,9 +47,7 @@ DEFAULT_TIER_LIMITS = {
     "heavy": {
         "models": [
             "openai/gpt-oss-120b",
-            "grok",
-            "minimax",
-            "kimi"
+            "minimax"
         ],
         "rps": 0.125,
         "rpm": 2
@@ -66,13 +73,11 @@ class UserBucket:
         """
         self._cleanup(now)
         
-        # RPM check
         if len(self.timestamps) >= rpm:
             oldest = self.timestamps[0]
             wait = 60.0 - (now - oldest)
             return False, max(0.1, wait), f"{rpm} requests/minute reached."
         
-        # RPS check
         if rps > 0 and self.timestamps:
             last = self.timestamps[-1]
             min_interval = 1.0 / rps
@@ -81,7 +86,6 @@ class UserBucket:
                 wait = min_interval - elapsed
                 return False, max(0.1, wait), f"Max {rps:.1f} requests/second."
         
-        # Allowed
         self.timestamps.append(now)
         return True, 0.0, ""
     
@@ -98,16 +102,14 @@ class RateLimiter:
         self.tier_limits = {k: dict(v) for k, v in DEFAULT_TIER_LIMITS.items()}
         self.users: dict[str, UserBucket] = defaultdict(UserBucket)
         self.enabled = True
-        self.kill_switch = False  # Emergency: block ALL AI responses
+        self.kill_switch = False
         
-        # Dynamic scaling config
         self.dynamic_enabled = True
-        self.low_usage_threshold = 2      # <= this many active users = generous
-        self.high_usage_threshold = 5    # >= this many active users = tight
-        self.low_multiplier = 1.5         # generous multiplier
-        self.high_multiplier = 0.5        # tight multiplier
+        self.low_usage_threshold = 2      
+        self.high_usage_threshold = 5    
+        self.low_multiplier = 1.5         
+        self.high_multiplier = 0.5        
         
-        # Stats
         self.total_requests = 0
         self.total_denied = 0
         self.start_time = time.time()
@@ -132,7 +134,6 @@ class RateLimiter:
         elif active >= self.high_usage_threshold:
             return self.high_multiplier
         else:
-            # Linear interpolation between low and high
             ratio = (active - self.low_usage_threshold) / (self.high_usage_threshold - self.low_usage_threshold)
             return self.low_multiplier + ratio * (self.high_multiplier - self.low_multiplier)
     
@@ -148,7 +149,6 @@ class RateLimiter:
         Main entry point: check if user_id is allowed to make a request.
         Returns: (allowed, wait_seconds, reason)
         """
-        # Kill switch overrides everything
         if self.kill_switch:
             return False, 0.0, "⛔ AI responses are temporarily disabled."
         
@@ -158,11 +158,9 @@ class RateLimiter:
         now = time.time()
         self.total_requests += 1
         
-        # Determine tier limits
         tier_key = self._get_tier_for_model(model_id) if model_id else "medium"
         tier = self.tier_limits.get(tier_key, self.tier_limits["medium"])
         
-        # Apply dynamic multiplier to RPM (RPS stays per-second but RPM gets scaled)
         multiplier = self._get_dynamic_multiplier(now)
         effective_rps = tier["rps"] * multiplier
         effective_rpm = max(1, int(tier["rpm"] * multiplier))
@@ -214,5 +212,4 @@ class RateLimiter:
         if user_id in self.users:
             del self.users[user_id]
 
-# Singleton instance
 rate_limiter = RateLimiter()

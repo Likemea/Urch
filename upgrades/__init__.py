@@ -12,14 +12,12 @@ UPGRADE_CATEGORIES = {
     "clover": CLOVER_UPGRADES,
 }
 
-# 1. Update arguments to accept user_obj and the pre-calculated checklist bonus
 def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus: float = 1.0) -> Dict[str, float]:
     """
     Returns combined upgrade-derived modifiers for a user.
-    Pure logic only - does not fetch from DB.
+    does not fetch from DB.
     """
-    # 2. REMOVED the import from utils to fix ImportError
-    # from utils import user_data, get_checklist_bonus <-- DELETED
+
     from raritylist import RARITIES
 
     effects = {
@@ -32,12 +30,10 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
         "autoroll_unlocked": False,
     }
 
-    # 3. Use the passed object directly
     user = user_obj
     if not user:
         return effects    
         
-    # 4. Apply the passed checklist bonus
     effects["exp_bonus"] *= checklist_exp_bonus
 
     # Upgrades are expected in user["upgrades"] as categories:
@@ -52,11 +48,9 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
         if key in LUCK_UPGRADES:
             defn = LUCK_UPGRADES[key]
             
-            # Simple per-tier additive bonus
             if "effect_per_tier" in defn:
                 effects["luck_bonus"] += defn["effect_per_tier"] * tier
                 
-            # Complex callback effect
             elif "effect" in defn and callable(defn["effect"]):
                 try:
                     res = defn["effect"](tier, user)

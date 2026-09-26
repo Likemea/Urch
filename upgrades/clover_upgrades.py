@@ -4,7 +4,7 @@ CLOVER_UPGRADES = {
     "clover_luck": {
         "name": "☘ Clover Luck",
         "description": "Increases 🍀Luck by 5% compounding per tier",
-        "max_tier": 12,
+        "max_tier": 13,
         "requirements": {
             1: {"clovers": 1},
             2: {"clovers": 5},
@@ -17,7 +17,8 @@ CLOVER_UPGRADES = {
             9: {"clovers": 1200, "emerald": 52, "lucky": 36, "very_nice": 16, "ultimate": 8, "exotic": 5, "archidon": 2},
             10: {"clovers": 1800, "crystallize": 96, "aureum": 64, "grass": 32, "quantum": 24, "divine": 18, "redacted": 11, "supreme": 8, "slick": 5, "53_5": 3, "lottery": 1},
             11: {"clovers": 2650, "hell": 150, "lucky": 120, "triangle": 90, "very_nice": 81, "extreme": 74, "exode": 60, "godly": 35, "enigmatic": 22, "53_4": 16, "unfathomable": 10, "amazing": 5},
-            12: {"clovers": 3333, "otherworldly": 33, "easy": 20, "redacted": 15, "supreme": 10, "slick": 5, "53_5": 5, "deletion": 3, "acceleration": 2, "atmospheric": 1}
+            12: {"clovers": 3333, "otherworldly": 33, "easy": 20, "redacted": 15, "supreme": 10, "slick": 5, "53_5": 5, "deletion": 3, "acceleration": 2, "atmospheric": 1},
+            13: {"clovers": 4040, "exceptional": 140, "square": 115, "grass": 86, "binary": 60, "quantum": 50, "ascendant": 38, "redacted": 23, "fuchsia": 17, "planetary": 10}
         },
         "effect": lambda tier, user: {"exp_bonus": 1.05**tier}
     },

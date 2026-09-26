@@ -5,13 +5,15 @@ from discord.ext import commands
 
 from utils import get_user_data, inventory_all_items_sorted
 from raritylist import RARITIES
+from buffs import get_user_potion_summary
 
 
 class InventoryView(discord.ui.View):
-    def __init__(self, user_id: str, items: list[tuple[str, int]]):
+    def __init__(self, user_id: str, items: list[tuple[str, int]], potion_summary: list[str] = None):
         super().__init__(timeout=120)
         self.user_id = str(user_id)
         self.items = items
+        self.potion_summary = potion_summary or []
         self.page = 0
         self.items_per_page = 10
         self.update_buttons()
@@ -35,7 +37,10 @@ class InventoryView(discord.ui.View):
             embed.description = "Empty"
 
         total_items = sum(count for _, count in self.items)
-        embed.set_footer(text=f"Total items: {total_items}")
+        footer_parts = [f"Total items: {total_items}"]
+        if self.potion_summary:
+            footer_parts.append(f"Potions: {', '.join(self.potion_summary)}")
+        embed.set_footer(text=" • ".join(footer_parts))
         return embed
 
     @property
@@ -76,16 +81,13 @@ class InventoryCommand(commands.Cog):
     async def inventory(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         user = await get_user_data(user_id)
-        if not user or not user.get("inventory"):
-            await interaction.response.send_message("🎒 Your inventory is empty.", ephemeral=True)
-            return
-
         items = await inventory_all_items_sorted(user_id, RARITIES)
-        if not items:
+        potion_summary = await get_user_potion_summary(user_id, user_obj=user)
+        if not items and not potion_summary:
             await interaction.response.send_message("🎒 Your inventory is empty.", ephemeral=True)
             return
 
-        view = InventoryView(user_id, items)
+        view = InventoryView(user_id, items, potion_summary=potion_summary)
         embed = view.format_page()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 

@@ -7,10 +7,11 @@ import discord
 import aiohttp
 from discord import app_commands
 from discord.ext import commands
+import config
 
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-HEADERS_GROQ = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+POLLINATIONS_API_KEY = config.POLLINATIONS_API_KEY
+POLLINATIONS_API_URL = "https://gen.pollinations.ai/v1/chat/completions"
+HEADERS_POLLINATIONS = {"Authorization": f"Bearer {POLLINATIONS_API_KEY}", "Content-Type": "application/json"}
 
 async def generate_response(prompt, user_id):
     
@@ -20,15 +21,15 @@ async def generate_response(prompt, user_id):
     ]
 
     payload = {
-        "model": "llama-3.1-8b-instant",
+        "model": "community/ZapGaming/llama3.1-8b-xturbo",
         "messages": messages,
         "temperature": 1,
-        "max_completion_tokens": 512
+        "max_completion_tokens": 1024
     }
    
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(GROQ_API_URL, headers=HEADERS_GROQ, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+            async with session.post(POLLINATIONS_API_URL, headers=HEADERS_POLLINATIONS, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
                 response = data["choices"][0]["message"]["content"].strip()

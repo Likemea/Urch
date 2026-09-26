@@ -248,6 +248,26 @@ class ModelSelect(discord.ui.Select):
 class ReasoningSelect(discord.ui.Select):
     def __init__(self, user_id, current_val):
         options = [
+            discord.SelectOption(label="None", value="none", description="Fastest responses"),
+            discord.SelectOption(label="Low", value="low", description="Good for most tasks"),
+            discord.SelectOption(label="Medium", value="medium", description="(Recommended) A balanced choice for general use and solid quality"),
+            discord.SelectOption(label="High", value="high", description="Maximizes reasoning depth")
+        ]
+        
+        for opt in options:
+            if opt.value == str(current_val):
+                opt.default = True
+
+        super().__init__(placeholder="Reasoning Effort", min_values=1, max_values=1, options=options, row=1)
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        await set_user_ai_param(self.user_id, "reasoning", self.values[0])
+        await interaction.response.defer()
+
+class ToolingSelect(discord.ui.Select):
+    def __init__(self, user_id, current_val):
+        options = [
             discord.SelectOption(label="Auto", value="Auto", description="Urch decides when to use tools"),
             discord.SelectOption(label="True", value="True", description="Urch always uses tools"),
             discord.SelectOption(label="False", value="False", description="Urch never uses tools")
@@ -257,11 +277,11 @@ class ReasoningSelect(discord.ui.Select):
             if opt.value == str(current_val):
                 opt.default = True
 
-        super().__init__(placeholder="Reasoning", min_values=1, max_values=1, options=options, row=1)
+        super().__init__(placeholder="Tooling", min_values=1, max_values=1, options=options, row=2)
         self.user_id = user_id
 
     async def callback(self, interaction: discord.Interaction):
-        await set_user_ai_param(self.user_id, "reasoning", self.values[0])
+        await set_user_ai_param(self.user_id, "tooling", self.values[0])
         await interaction.response.defer()
 
 class AdvancedSettingsView(discord.ui.View):
@@ -271,13 +291,14 @@ class AdvancedSettingsView(discord.ui.View):
         self.bot = bot
         
         self.add_item(ModelSelect(user_id, params.get("model", "Auto")))
-        self.add_item(ReasoningSelect(user_id, params.get("reasoning", "Auto")))
+        self.add_item(ReasoningSelect(user_id, params.get("reasoning", "none")))
+        self.add_item(ToolingSelect(user_id, params.get("tooling", "Auto")))
         
-        num_btn = discord.ui.Button(label="Parameters", style=discord.ButtonStyle.primary, emoji="🔢", row=2)
+        num_btn = discord.ui.Button(label="Parameters", style=discord.ButtonStyle.primary, emoji="🔢", row=3)
         num_btn.callback = self.numeric_callback
         self.add_item(num_btn)
 
-        back_btn = discord.ui.Button(label="Back", style=discord.ButtonStyle.secondary, emoji="◀", row=2)
+        back_btn = discord.ui.Button(label="Back", style=discord.ButtonStyle.secondary, emoji="◀", row=3)
         back_btn.callback = self.back_callback
         self.add_item(back_btn)
 
@@ -289,9 +310,10 @@ class AdvancedSettingsView(discord.ui.View):
         model_disp = MODEL_LIST.get(model_key, {}).get("disp", model_key) if model_key != "Auto" else "Auto"
         
         desc += f"**Model:** {model_disp}\n"
-        desc += f"**Reasoning:** {user_params.get('reasoning', 'Auto')}\n"
+        desc += f"**Reasoning:** {user_params.get('reasoning', 'none')}\n"
+        desc += f"**Tooling:** {user_params.get('tooling', 'Auto')}\n"
         desc += f"**Temperature:** {user_params.get('temperature', 0.7)}\n"
-        desc += f"**Max Tokens:** {user_params.get('max_completion_tokens', 512)}\n"
+        desc += f"**Max Tokens:** {user_params.get('max_completion_tokens', 1000)}\n"
         
         embed = discord.Embed(title="🔧 Advanced Settings", description=desc, color=discord.Color.dark_grey())
         
@@ -324,10 +346,10 @@ class AdvancedParamsModal(discord.ui.Modal, title="Parameters"):
         )
         
         self.max_completion_tokens = discord.ui.TextInput(
-            label="Max Tokens (5 - 4096)",
-            placeholder="512", 
+            label="Max Tokens (5 - 2048)",
+            placeholder="1000", 
             required=False,
-            default=str(params.get("max_completion_tokens", 512))
+            default=str(params.get("max_completion_tokens", 1000))
         )
         
         self.add_item(self.temperature)
@@ -337,7 +359,7 @@ class AdvancedParamsModal(discord.ui.Modal, title="Parameters"):
         try:
             if self.max_completion_tokens.value:
                 raw = int(self.max_completion_tokens.value)
-                clamped = clamp(raw, 5, 4096)
+                clamped = clamp(raw, 5, 2048)
                 await set_user_ai_param(self.user_id, "max_completion_tokens", clamped)
                 
             if self.temperature.value:

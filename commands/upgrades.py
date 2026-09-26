@@ -101,7 +101,7 @@ class UpgradeView(discord.ui.View):
         if not reqs:
             return await interaction.response.send_message("✅ Upgrade is already maxed.", ephemeral=True)
 
-        ok, missing = await has_requirements(self.user_id, reqs)
+        ok, missing = await has_requirements(self.user_id, reqs, user_obj=user)
         if not ok:
             lines = [f"{rar} ({need} more needed)" for rar, need in missing.items()]
             return await interaction.response.send_message(
@@ -158,7 +158,7 @@ class UpgradeView(discord.ui.View):
             for item, amount in reqs.items():
                 temp_reqs[item] = temp_reqs.get(item, 0) + amount
             
-            ok, missing = await has_requirements(self.user_id, temp_reqs)
+            ok, missing = await has_requirements(self.user_id, temp_reqs, user_obj=user)
             if not ok:
                 break
                 
@@ -246,7 +246,7 @@ class UpgradeView(discord.ui.View):
         if reqs:
             lines = []
             for item, need in reqs.items():
-                have = await get_item_count(self.user_id, item)
+                have = await get_item_count(self.user_id, item, user_obj=user)
                 mark = "✅" if have >= need else "❌"
                 display_name = RARITY_ID_TO_NAME.get(item, item.capitalize())
                 lines.append(f"{mark} {display_name}: {have}/{need}")
@@ -270,7 +270,6 @@ class UpgradeView(discord.ui.View):
         if next_btn:
             next_btn.disabled = num_upgrades <= 1
         
-        # Ensure page is within bounds after category switch
         if num_upgrades > 0:
             self.page = self.page % num_upgrades
         else:

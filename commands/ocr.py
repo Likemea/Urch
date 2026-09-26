@@ -47,9 +47,6 @@ class OCRCommand(commands.Cog):
     async def cog_unload(self):
         self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
-    # -----------------------------------------------------
-    # A. SLASH COMMAND (/ocr)
-    # -----------------------------------------------------
     @app_commands.command(name="ocr", description="Extract text from an image attachment")
     @app_commands.describe(file="Upload an image to extract text from")
     async def ocr_slash(self, interaction: discord.Interaction, file: discord.Attachment):
@@ -64,9 +61,6 @@ class OCRCommand(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ {str(e)}")
 
-    # -----------------------------------------------------
-    # B. CONTEXT MENU CALLBACK
-    # -----------------------------------------------------
     async def ocr_context(self, interaction: discord.Interaction, message: discord.Message):
         if not message.attachments:
             await interaction.response.send_message("❌ No image attachment found", ephemeral=True)

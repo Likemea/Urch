@@ -3,9 +3,10 @@ import os
 import requests
 import json
 import time
+import config
 
 APPLICATION_ID = '1228418730103541780'
-BOT_TOKEN = os.environ.get('BOT_TOKEN') 
+BOT_TOKEN = config.BOT_TOKEN
 
 url = f"https://discord.com/api/v10/applications/{APPLICATION_ID}/commands"
 
@@ -129,7 +130,7 @@ commands = [
     {
         "name": "settings",
         "type": 1,
-        "description": "View or adjust bot AI parameters",
+        "description": "Change Urch's personality",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS,
         "options": [
@@ -172,6 +173,42 @@ commands = [
         "description": "View discovery progress",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS
+    },
+    {
+        "name": "recipes",
+        "type": 1,
+        "description": "Potion and alchemy commands",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+        "options": [
+            {
+                "name": "view",
+                "description": "Displays all recipes",
+                "type": 1 # SUB_COMMAND
+            },
+            {
+                "name": "craft",
+                "description": "Craft a potion from recipes",
+                "type": 1, # SUB_COMMAND
+                "options": [
+                    {
+                        "name": "recipe_id",
+                        "description": "The recipe ID of the potion to craft",
+                        "type": 3, # STRING
+                        "required": True,
+                        "autocomplete": True
+                    },
+                    {
+                        "name": "amount",
+                        "description": "The amount of potions to craft (1-1000)",
+                        "type": 4, # INTEGER
+                        "required": False,
+                        "min_value": 1,
+                        "max_value": 1000
+                    }
+                ]
+            }
+        ]
     },
     {
         "name": "setluck",
@@ -276,17 +313,147 @@ commands = [
         "contexts": CONTEXTS
     },
     {
-        "name": "imagine",
+        "name": "txt2img",
         "type": 1,
-        "description": "Generate an image",
+        "description": "Generate an image via Pollinations",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS,
         "options": [
             {
                 "name": "prompt",
-                "description": "The description of the image you want to generate",
-                "type": 3, # STRING type
+                "description": "Description of the image you want to generate",
+                "type": 3,
                 "required": True
+            },
+            {
+                "name": "model",
+                "description": "AI model to use",
+                "type": 3,
+                "required": False,
+                "choices": [
+                    {"name": "Flux Schnell", "value": "flux"},
+                    {"name": "Z-Image Turbo", "value": "zimage"},
+                    {"name": "GPT Image 1 Mini", "value": "gptimage"},
+                    {"name": "GPT Image 1.5", "value": "gptimage-large"},
+                    {"name": "Wan 2.7 Image", "value": "wan-image"},
+                    {"name": "Qwen Image Plus", "value": "qwen-image"},
+                    {"name": "FLUX.2 Klein 4B", "value": "klein"},
+                    {"name": "FLUX.1 Kontext", "value": "kontext"}
+                ]
+            },
+            {
+                "name": "width",
+                "description": "Width of the image (128-768)",
+                "type": 4,
+                "required": False
+            },
+            {
+                "name": "height",
+                "description": "Height of the image (128-768)",
+                "type": 4,
+                "required": False
+            },
+            {
+                "name": "seed",
+                "description": "Seed for reproducible results (-1 for random)",
+                "type": 4,
+                "required": False
+            },
+            {
+                "name": "enhance",
+                "description": "Urch prompt enhancement",
+                "type": 5,
+                "required": False
+            },
+            {
+                "name": "quality",
+                "description": "Image quality (low/medium/high) - gpt-image only",
+                "type": 3,
+                "required": False,
+                "choices": [
+                    {"name": "Low", "value": "low"},
+                    {"name": "Medium", "value": "medium"},
+                    {"name": "High", "value": "high"}
+                ]
+            }
+        ]
+    },
+    {
+        "name": "txt2aud",
+        "type": 1,
+        "description": "Generate speech or music from text via Pollinations",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+        "options": [
+            {
+                "name": "prompt",
+                "description": "The text to generate audio/music for (max 4096 chars)",
+                "type": 3,
+                "required": True
+            },
+            {
+                "name": "model",
+                "description": "Audio model (nova-3 for speech, acestep for music)",
+                "type": 3,
+                "required": False,
+                "choices": [
+                    {"name": "Speech (nova-3)", "value": "nova-3"},
+                    {"name": "Music (AceStep)", "value": "acestep"}
+                ]
+            },
+            {
+                "name": "voice",
+                "description": "Voice preset to use (nova-3 speech only)",
+                "type": 3,
+                "required": False,
+                "choices": [
+                    {"name": "Alloy", "value": "alloy"},
+                    {"name": "Echo", "value": "echo"},
+                    {"name": "Fable", "value": "fable"},
+                    {"name": "Onyx", "value": "onyx"},
+                    {"name": "Nova", "value": "nova"},
+                    {"name": "Shimmer", "value": "shimmer"},
+                    {"name": "Rachel", "value": "rachel"},
+                    {"name": "Adam", "value": "adam"},
+                    {"name": "Daniel", "value": "daniel"},
+                    {"name": "Sam", "value": "sam"}
+                ]
+            },
+            {
+                "name": "duration",
+                "description": "Music duration in seconds, 3-60 (acestep music only)",
+                "type": 4,
+                "required": False
+            },
+            {
+                "name": "style",
+                "description": "Style/genre tags (acestep music only)",
+                "type": 3,
+                "required": False
+            },
+            {
+                "name": "instrumental",
+                "description": "Guarantees instrumental output (acestep music only)",
+                "type": 5,
+                "required": False
+            },
+            {
+                "name": "speed",
+                "description": "Speech speed, 0.25-4.0 (nova-3 speech only)",
+                "type": 10,
+                "required": False
+            },
+            {
+                "name": "instruct",
+                "description": "Emotion/style instruction (nova-3 speech only)",
+                "type": 3,
+                "required": False
+            },
+            {
+                "name": "seed",
+                "description": "Seed for reproducible results (-1 for random)",
+                "type": 4,
+                "required": False
             }
         ]
     },
@@ -329,6 +496,42 @@ commands = [
         "description": "🔒 Owner control panel",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS
+    },
+    {
+        "name": "transcribe",
+        "type": 1,
+        "description": "Transcribe an audio file attachment",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+        "options": [
+            {
+                "name": "file",
+                "description": "Upload an audio file to transcribe (.mp3, .wav, .m4a, .ogg, etc.)",
+                "type": 11, # ATTACHMENT type
+                "required": True
+            }
+        ]
+    },
+    {
+        "name": "Transcribe",
+        "type": 3,  # 3 = MESSAGE CONTEXT MENU
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS
+    },
+    {
+        "name": "diagnose",
+        "type": 1,
+        "description": "Run a performance test on the bot's health",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+        "options": [
+            {
+                "name": "duration",
+                "description": "Duration of diagnostics in seconds (1-60)",
+                "type": 4, # INTEGER
+                "required": False
+            }
+        ]
     }
 ]
 

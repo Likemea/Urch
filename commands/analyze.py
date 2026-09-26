@@ -6,18 +6,14 @@ import requests
 from discord import app_commands, Interaction
 from discord.ext import commands
 from utils import get_user_ai_params
+import config
 
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+
+GROQ_API_KEY = config.GROQ_API_KEY
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 headers_groq = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-DEFAULT_AI_PARAMS = {
-    "max_completion_tokens": 512,
-    "temperature": 0.5, 
-}
-
 def generate_vision_response(image_url, prompt, user_id):
-    user_params = DEFAULT_AI_PARAMS
     
     messages = [
         {
@@ -30,10 +26,10 @@ def generate_vision_response(image_url, prompt, user_id):
     ]
 
     payload = {
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct", 
+        "model": "qwen/qwen3.8-27b", 
         "messages": messages,
-        "temperature": user_params.get("temperature", 0.5),
-        "max_completion_tokens": user_params.get("max_completion_tokens", 512)
+        "temperature": 1,
+        "max_completion_tokens": 1024
     }
    
     try:
@@ -73,12 +69,8 @@ class AnalyzeCommand(commands.Cog):
         self.bot.tree.add_command(self.ctx_menu)
 
     async def cog_unload(self):
-        # Cleanup
         self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
-    # -----------------------------------------------------
-    # A. SLASH COMMAND (/analyze)
-    # -----------------------------------------------------
     @app_commands.command(name="analyze", description="Analyze an image")
     @app_commands.describe(file="The image to analyze", prompt="Specific question about the image (Optional)")
     async def analyze_slash(self, interaction: discord.Interaction, file: discord.Attachment, prompt: str = "Describe this image in detail."):
@@ -92,9 +84,6 @@ class AnalyzeCommand(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ {str(e)}")
 
-    # -----------------------------------------------------
-    # B. CONTEXT MENU CALLBACK
-    # -----------------------------------------------------
     async def analyze_context(self, interaction: discord.Interaction, message: discord.Message):
         if not message.attachments:
             await interaction.response.send_message("❌ No image attachment found", ephemeral=True)

@@ -6,7 +6,7 @@ import aiohttp
 import time
 from providers import PROVIDERS
 
-async def generate_image(prompt: str, model: str = "zimage", width: int = 512, height: int = 512, **kwargs) -> discord.File:
+async def generate_image(prompt: str, model: str = "dreamshaper", width: int = 512, height: int = 512, **kwargs) -> discord.File:
     """Generates an image via Pollinations.ai (gen.pollinations.ai) and returns a discord.File object"""
     encoded_prompt = urllib.parse.quote(prompt)
     base_url = PROVIDERS["pollinations"]["image_url"]
@@ -14,22 +14,31 @@ async def generate_image(prompt: str, model: str = "zimage", width: int = 512, h
     
     url = f"{base_url}/{encoded_prompt}"
     
-    headers = {
-        "Authorization": f"Bearer {api_key}"
-    }
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     
     params = {
         "model": model,
         "width": str(width),
         "height": str(height),
         "seed": str(kwargs.get("seed", -1)),
-        "enhance": str(kwargs.get("enhance", False)).lower(),
-        "negative_prompt": kwargs.get("negative_prompt", ""),
-        "safe": kwargs.get("safe", ""),
-        "quality": kwargs.get("quality", "medium"),
-        "image": kwargs.get("image", ""),
-        "transparent": str(kwargs.get("transparent", False)).lower(),
     }
+    
+    if kwargs.get("enhance"):
+        params["enhance"] = "true"
+        
+    if kwargs.get("transparent"):
+        params["transparent"] = "true"
+
+    if kwargs.get("safe"):
+        params["safe"] = str(kwargs["safe"]).lower()
+
+    if kwargs.get("image"):
+        params["image"] = kwargs["image"]
+
+    if model == "gpt-image-2":
+        params["quality"] = kwargs.get("quality", "low")
     
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers, params=params) as response:

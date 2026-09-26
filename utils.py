@@ -2,7 +2,8 @@
 import json
 import os
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+from collections import Counter
 import asyncio
 from database import db
 from datetime import datetime
@@ -17,6 +18,12 @@ LOG_CHANNEL_NAME = "✨🎰・rare-rolls"
 
 RARITY_ID_TO_NAME = {r[2]: r[0] for r in RARITIES}
 RARITY_NAME_SET = {r[0] for r in RARITIES}
+RARITY_NAMES = [r[0] for r in RARITIES]
+RARITY_BASE_PROBS = [r[1] for r in RARITIES]
+TOTAL_BASE_PROB = sum(RARITY_BASE_PROBS)
+TOTAL_RARITIES = len(RARITIES)
+RARITY_RANKS = [idx / max(1, TOTAL_RARITIES - 1) for idx in range(TOTAL_RARITIES)]
+RARITY_INDEX_MAP = {r[0]: idx for idx, r in enumerate(RARITIES)}
 
 def resolve_item_key(key: str) -> Tuple[str, str]:
     """
@@ -34,15 +41,16 @@ def resolve_item_key(key: str) -> Tuple[str, str]:
 
 LUCK_GROWTH_PER_ROLL = 0.01
 CHECKLIST_BONUS = 0.03
-DM_HISTORY_LIMIT = 10
-SERVER_HISTORY_LIMIT = 10
+DM_HISTORY_LIMIT = 16
+SERVER_HISTORY_LIMIT = 16
 
 DEFAULT_AI_PARAMS = {
-    "max_completion_tokens": 500,
+    "max_completion_tokens": 1000,
     "temperature": 0.75,
     "top_p": 1,
     "model": "Auto", 
-    "reasoning": "Auto",
+    "reasoning": "none",
+    "tooling": "Auto",
     "user_persona": "",
     "ai_persona": ""
 }
@@ -62,56 +70,62 @@ async def save_user_data(user_id: str, data: Dict[str, any]):
     await db.ensure_user(user_id)
     return await db.save_user_data(user_id, data)
     
-async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
+async def update_user_data(user_id: str, new_rarity: Union[str, List[str]], action: str = "none") -> Optional[Dict[str, any]]:
     async with db.lock_user(user_id):
         user = await db.get_user_data(user_id)
-        if not user: return
+        if not user: return None
 
-        if new_rarity not in RARITY_NAME_SET:
-            pass
+        if isinstance(new_rarity, str):
+            rarities_list = [new_rarity]
+        else:
+            rarities_list = list(new_rarity)
 
-        rarity_names = [r[0] for r in RARITIES]
+        if not rarities_list:
+            return user
+
         current_high = user.get('highscore')
-        update_high = False
-        
-        if not current_high:
-            update_high = True
-        elif new_rarity in rarity_names:
-            try:
-                if rarity_names.index(new_rarity) > rarity_names.index(current_high):
-                    update_high = True
-            except ValueError:
-                pass
-                
-        if update_high:
-            user['highscore'] = new_rarity
+        current_high_idx = RARITY_INDEX_MAP.get(current_high, -1) if current_high else -1
+        highest_idx = current_high_idx
+        best_rarity = current_high
+
+        for r in rarities_list:
+            idx = RARITY_INDEX_MAP.get(r, -1)
+            if idx > highest_idx:
+                highest_idx = idx
+                best_rarity = r
+
+        if best_rarity and best_rarity != current_high:
+            user['highscore'] = best_rarity
 
         if action == "keep":
             inventory = user.setdefault("inventory", {})
-            inventory[new_rarity] = inventory.get(new_rarity, 0) + 1
-            
             discovered = user.setdefault("discovered", {})
-            discovered[new_rarity] = True
-            
-            user['roll_count'] = user.get('roll_count', 0) + 1
-            
+
+            rarity_counts = Counter(rarities_list)
+            for r, count in rarity_counts.items():
+                inventory[r] = inventory.get(r, 0) + count
+                discovered[r] = True
+
+            roll_count_inc = len(rarities_list)
+            user['roll_count'] = user.get('roll_count', 0) + roll_count_inc
+
             current_luck = user.get('luck_multi', 1.0)
-            new_luck = current_luck + LUCK_GROWTH_PER_ROLL
+            new_luck = current_luck + (LUCK_GROWTH_PER_ROLL * roll_count_inc)
             user['luck_multi'] = round(new_luck, 3)
-            
+
             if new_luck > user.get('max_luck', 1.0):
                 user['max_luck'] = round(new_luck, 3)
-                
+
             bonuses = await get_upgrade_effect(user_id, user_obj=user)
             effective_luck = (new_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
-            
+
             if effective_luck >= 1000:
                  every = bonuses.get("clover_every", 10)
                  current_rolls = user['roll_count']
-                 
+
                  expected = int((current_rolls // every) * user.get('clover_multi', 1.0))
                  already = user.get('clovers_earned', 0)
-                 
+
                  if expected > already:
                      diff = expected - already
                      currencies = user.setdefault("currencies", {})
@@ -119,6 +133,7 @@ async def update_user_data(user_id: str, new_rarity: str, action: str = "none"):
                      user['clovers_earned'] = expected
 
         await db.save_user_data(user_id, user)
+        return user
 
 # ───────────────────────────────
 # INVENTORY & CURRENCY SYSTEM
@@ -169,9 +184,9 @@ async def currency_remove(user_id: str, item_key: str, amount: int = 1) -> bool:
                 return True
             return False
 
-async def currency_count(user_id: str, item_key: str) -> int:
+async def currency_count(user_id: str, item_key: str, user_obj: Dict[str, any] = None) -> int:
     """looks in correct storage location"""
-    user = await get_user_data(user_id)
+    user = user_obj if user_obj is not None else await get_user_data(user_id)
     if not user: return 0
     
     db_key, category = resolve_item_key(item_key)
@@ -181,9 +196,9 @@ async def currency_count(user_id: str, item_key: str) -> int:
     else:
         return int(user.get("inventory", {}).get(db_key, 0))
 
-async def has_requirements(user_id: str, requirements: Dict[str, int]) -> Tuple[bool, Dict[str, int]]:
+async def has_requirements(user_id: str, requirements: Dict[str, int], user_obj: Dict[str, any] = None) -> Tuple[bool, Dict[str, int]]:
     """Checks requirements both IDs, Full Names, and Currencies"""
-    user = await ensure_user(user_id)
+    user = user_obj if user_obj is not None else await ensure_user(user_id)
     missing = {}
     
     for item_key, need in requirements.items():
@@ -221,9 +236,9 @@ async def consume_requirements(user_id: str, requirements: Dict[str, int]) -> bo
         await db.save_user_data(user_id, user)
         return True
 
-async def get_item_count(user_id: str, item_key: str) -> int:
+async def get_item_count(user_id: str, item_key: str, user_obj: Dict[str, any] = None) -> int:
     """Wrapper for currency_count"""
-    return await currency_count(user_id, item_key)
+    return await currency_count(user_id, item_key, user_obj=user_obj)
 
 async def inventory_all_items_sorted(user_id: str, rarities_list: list) -> list:
     """
@@ -243,7 +258,9 @@ async def inventory_all_items_sorted(user_id: str, rarities_list: list) -> list:
     )
     return sorted_items
     
-async def roll_rarity(user_id: str, provided_luck: float = None) -> str:
+async def roll_rarities(user_id: str, count: int = 1, provided_luck: float = None) -> List[str]:
+    if count <= 0:
+        return []
     if provided_luck is not None:
         luck = provided_luck
     else:
@@ -255,32 +272,28 @@ async def roll_rarity(user_id: str, provided_luck: float = None) -> str:
             bonuses = await get_upgrade_effect(str(user_id), user_obj=user)
             luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
 
-    luck = max(1.0, luck)
-    
-    rarity_names = [r[0] for r in RARITIES]
-    base_probs = [r[1] for r in RARITIES]
-    total_base = sum(base_probs)
-    
-    adjusted_weights = []
-    total_rarities = len(rarity_names)
+    luck = max(1.0, float(luck or 1.0))
 
-    for idx, prob in enumerate(base_probs):
-        p = prob / total_base
-        rarity_rank = idx / max(1, total_rarities - 1)
-        
-        if luck <= 1.0:
-            weight = p
-        else:
-            weight = p * (luck ** (rarity_rank * 1.2))
-            
-        adjusted_weights.append(weight)
+    if luck <= 1.0:
+        weights = RARITY_BASE_PROBS
+    else:
+        weights = [
+            p * (luck ** (rank * 1.2))
+            for p, rank in zip(RARITY_BASE_PROBS, RARITY_RANKS)
+        ]
 
-    return random.choices(rarity_names, weights=adjusted_weights, k=1)[0]
+    return random.choices(RARITY_NAMES, weights=weights, k=count)
+
+async def roll_rarity(user_id: str, provided_luck: float = None) -> str:
+    res = await roll_rarities(user_id, count=1, provided_luck=provided_luck)
+    return res[0] if res else RARITY_NAMES[0]
 
 async def process_autorolls(user_ids: List[str]):
     """Process one tick of autorolls for all active users"""
     if not user_ids:
         return []
+
+    from buffs import evaluate_active_buffs
 
     updates = []
     rare_hits = [] # List of (user_id, rarity_name, one_in, total_luck)
@@ -289,7 +302,7 @@ async def process_autorolls(user_ids: List[str]):
         user = await db.get_user_data(user_id)
         if not user: continue
 
-        # Calculate luck and bonuses
+        # Luck and bonuses
         bonuses = await get_upgrade_effect(user_id, user_obj=user)
         luck_override = user.get('luck_override')
         if luck_override is not None:
@@ -298,19 +311,17 @@ async def process_autorolls(user_ids: List[str]):
             base_luck = float(user.get("luck_multi", 1.0))
             total_luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
         
+        buff_data = await evaluate_active_buffs(user_id, context="autoroll")
+        total_luck *= buff_data["luck_mult"]
+
         total_luck = max(1.0, total_luck)
         
-        # Roll consolidated into one singular high-luck roll for system health
         extra_rolls = bonuses.get("multi_roll", 0)
-        num_rolls = 1 + extra_rolls
+        num_rolls = int((1 + extra_rolls) / 2)
         
-        temp_luck = total_luck * num_rolls
-        rolled_rarity = await roll_rarity(user_id, provided_luck=temp_luck)
-        results = [rolled_rarity]
+        results = await roll_rarities(user_id, count=num_rolls, provided_luck=total_luck)
         
-        # Process results
-        # roll_count_inc remains num_rolls to maintain progression/luck growth speed
-        roll_count_inc = num_rolls
+        roll_count_inc = len(results)
         new_highscore = user.get("highscore")
         rarity_order = [r[0] for r in RARITIES]
         
@@ -319,20 +330,18 @@ async def process_autorolls(user_ids: List[str]):
         for res in results:
             inventory_diff[res] = inventory_diff.get(res, 0) + 1
             
-            # Check highscore
             if not new_highscore or rarity_order.index(res) > rarity_order.index(new_highscore):
                 new_highscore = res
             
-            # Check for rare log (meaningful roll)
-            # Logic: one_in >= (total_luck * 100)
+            # if one_in >= (total_luck * 100), it's a rare roll
             rarity_data = next((r for r in RARITIES if r[0] == res), None)
             if rarity_data:
                 weight = rarity_data[1]
                 total_weight = sum(r[1] for r in RARITIES)
                 one_in = total_weight / weight
                 
-                if one_in >= (temp_luck * 100):
-                    rare_hits.append((user_id, res, one_in, temp_luck))
+                if one_in >= (total_luck * 100):
+                    rare_hits.append((user_id, res, one_in, total_luck))
 
         # Luck growth
         current_luck = user.get('luck_multi', 1.0)
@@ -345,7 +354,7 @@ async def process_autorolls(user_ids: List[str]):
         if total_luck >= 1000:
             every = bonuses.get("clover_every", 10)
             total_rolls_after = user.get('roll_count', 0) + roll_count_inc
-            expected = int((total_rolls_after // every) * user.get('clover_multi', 1.0))
+            expected = int((total_rolls_after // every) * user.get('clover_multi', 1.0) * buff_data["clover_mult"])
             if expected > clovers_earned:
                 diff = expected - clovers_earned
                 currency_diff["clovers"] = diff
@@ -523,7 +532,6 @@ async def get_context_for_message(user_id, is_dm, guild_id, message_id):
     return await db.get_context_for_message(user_id, guild_id, message_id)
 
 def format_number(num: float) -> str:
-    """Formats a number with suffixes like k, M, B, etc."""
     if num < 1000:
         return f"{num:.2f}"
     
@@ -546,5 +554,5 @@ __all__ = [
     'equip_user_persona', 'edit_existing_persona', 'get_messages_for_context',
     'append_message_for_context', 'update_message_in_history', 'delete_message_from_history',
     'check_reaction_permission', 'get_context_for_message', 'format_number',
-    'process_autorolls', 'log_rare_roll', 'roll_rarity', 'update_user_data'
+    'process_autorolls', 'log_rare_roll', 'roll_rarity', 'roll_rarities', 'update_user_data'
 ]

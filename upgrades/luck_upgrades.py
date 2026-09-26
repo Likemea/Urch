@@ -108,6 +108,24 @@ LUCK_UPGRADES = {
         },
         "effect": lambda tier, user: {"luck_bonus": (0.3 * (tier * (2**math.floor(tier/10))))},
     },
+    "additive_luck_2": {
+        "name": "🍀 Additive Luck II",
+        "description": "Gain +5.0 Luck per tier \n Every 5th tier doubles the total bonus",
+        "max_tier": 10,
+        "requirements": {
+            1: {"anger": 22, "insane": 7, "archaic": 4, "exode": 2},
+            2: {"superman": 5, "grass": 10, "archidon": 3, "quantum": 2},
+            3: {"nice": 69, "triangle": 54, "enigmatic": 6, "divine": 4, "miner": 3, "easy": 2},
+            4: {"redacted": 8, "skilled": 5, "charge": 3, "slick": 3, "53_5": 2},
+            5: {"good": 512, "rare": 384, "epic": 256, "legendary": 128, "planetary": 5, "rainbow": 3, "darkness": 2, "matrix": 2, "crystalline_clover": 1},
+            6: {"subatomic": 6, "luminary": 4, "galactic": 3, "creativity": 2, "radiant": 1},
+            7: {"irradiated": 5, "diamantine": 3, "emeradic": 3, "unholy": 2, "base_gap_1": 1},
+            8: {"poop": 420, "luminary": 16, "lower_gap_1": 3, "true_pi": 2, "true_lottery": 1, "infuntus": 1},
+            9: {"vanta": 4, "eternal": 3, "32_bit": 2, "quasar": 1, "entropy": 1},
+            10: {"common": 10000, "tensor": 3, "absolute": 2, "cataclysmic": 2, "heirophant": 1, "multiversal": 1}
+        },
+        "effect": lambda tier, user: {"luck_bonus": (5.0 * tier) * (2 ** (tier // 5))},
+    },
     "exp_luck": {
         "name": "📈 Exponential Luck",
         "description": "rarity^(🍀0.2*tier)",
