@@ -33,7 +33,6 @@ intents.message_content = True
 intents.reactions = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# resource cleanup on shutdown
 original_close = bot.close
 async def new_close():
     print("Shutting down bot and cleaning up resources...")
