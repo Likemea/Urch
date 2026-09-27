@@ -30,11 +30,11 @@ async def dispatch_tool_call(tool_name: str, arguments_json: str, context: dict)
     try:
         if tool_name == "web_search":
             query = args.get("query", "")
-            max_results = args.get("max_results", 5)
+            max_results = args.get("max_results", 3)
             try:
                 max_results = int(max_results)
             except (ValueError, TypeError):
-                max_results = 5
+                max_results = 3
             output_text = await web_search(query, max_results=max_results)
             return output_text, None
 

@@ -317,7 +317,7 @@ async def process_autorolls(user_ids: List[str]):
         total_luck = max(1.0, total_luck)
         
         extra_rolls = bonuses.get("multi_roll", 0)
-        num_rolls = int((1 + extra_rolls) / 2)
+        num_rolls = max(1, 1 + int(extra_rolls / 2))
         
         results = await roll_rarities(user_id, count=num_rolls, provided_luck=total_luck)
         

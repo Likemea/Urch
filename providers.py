@@ -81,9 +81,6 @@ IMAGE_MODELS: dict = {
     },
 }
 # ── Model Registry ────────────────────────────────────────────────────────────
-# Capability flags control payload sanitization — no unsupported fields are
-# ever sent. extra_params are merged in before sanitization (always supported).
-#
 # Fields:
 #   id               – Exact model ID sent to the API
 #   disp             – Human-readable display name (settings UI)
@@ -361,25 +358,25 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
     if "id" in caps:
         clean["model"] = caps["id"]
 
-    # Apply extra_params first (they are always valid for this model)
+    # apply extra_params first (they are always valid for this model)
     for k, v in caps.get("extra_params", {}).items():
         clean.setdefault(k, v)
 
-    # Strip fields the model doesn't support
+    # strip fields the model doesn't support
     for cap_key, payload_key in _CAPABILITY_FIELDS.items():
         if not caps.get(cap_key, False):
             clean.pop(payload_key, None)
             if payload_key == "tools":
                 clean.pop("tool_choice", None)
 
-    # Never force json_object mode when using native tool calling
+    # never force json_object mode when using native tool calling
     if clean.get("tools"):
         clean.pop("response_format", None)
 
     if clean.get("reasoning_effort") == "none":
         clean.pop("reasoning_effort", None)
 
-    # Sanitize message history based on tool capability
+    # sanitize message history based on tool capability
     if "messages" in clean and isinstance(clean["messages"], list):
         sanitized_messages = []
         supports_tools = caps.get("tools", False)
@@ -392,7 +389,7 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
             role = msg_copy.get("role")
             
             if not supports_tools:
-                # If model doesn't support tools, convert tool output messages to user role
+                # if model doesn't support tools, convert tool output messages to user role
                 if role == "tool":
                     tool_name = msg_copy.get("name", "tool")
                     tool_content = msg_copy.get("content", "")
@@ -402,7 +399,7 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
                     })
                     continue
                 elif role == "assistant" and "tool_calls" in msg_copy:
-                    # Strip tool_calls and provide synthetic text if content is empty
+                    # strip tool_calls and put example text if content is empty
                     calls = msg_copy.pop("tool_calls", [])
                     if not msg_copy.get("content"):
                         names = ", ".join([c.get("function", {}).get("name", "") for c in calls if isinstance(c, dict)])
@@ -451,23 +448,23 @@ async def _post(provider_key: str, payload: dict, timeout: int = 20):
         resp.raise_for_status()
         return await resp.json()
 
-# ── User-facing Model Call ────────────────────────────────────────────────────
+# ── User-facing Call ────────────────────────────────────────────────────
 FALLBACK_MODEL_KEY = "llama3.1-8b"
 
 async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tuple:
     """
-    Call the provider for `model_key` with retry and fallback logic.
-    Supports a 3-stage fallback flow:
-      1. Normal payload (sanitized) for the selected model.
-      2. If 4xx error occurs, retry immediately with stripped custom parameters (no temperature, top_p, reasoning_effort, max_completion_tokens).
-      3. If that also fails, fallback to FALLBACK_MODEL_KEY
-    Returns (response_json, model_id_used).
+    call the provider for `model_key` with retry and fallback logic.
+    supports a 3-stage fallback flow:
+      1. normal payload (sanitized) for the selected model.
+      2. if 4xx error occurs, retry immediately with stripped custom parameters (no temperature, top_p, reasoning_effort, max_completion_tokens).
+      3. if that also fails, fallback to FALLBACK_MODEL_KEY
+    returns (response_json, model_id_used)
     """
     model_info = MODELS.get(model_key, MODELS[FALLBACK_MODEL_KEY])
     provider_key = model_info["provider"]
     clean = sanitize_payload(payload, model_info)
 
-    # Stage 1: Try normal payload
+    # stage 1 - normal
     for attempt in range(retries):
         try:
             resp = await _post(provider_key, clean)
@@ -484,7 +481,7 @@ async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tupl
             else:
                 break
 
-    # Stage 2: Try stripped parameters (same model)
+    # stage 2 - no params
     print(f"[Provider] Retrying {model_info['id']} with stripped parameters...")
     stripped_payload = dict(payload)
     for k in ["temperature", "top_p", "reasoning_effort", "max_completion_tokens"]:
@@ -496,7 +493,7 @@ async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tupl
     except Exception as e:
         print(f"[Provider] Stripped parameters retry failed for {model_info['id']}: {e}")
 
-    # Stage 3: Hard fallback
+    # stage 3 - fallback
     fallback = MODELS[FALLBACK_MODEL_KEY]
     print(f"⚠️ All stages failed. Falling back to {fallback['id']}")
     fallback_payload = sanitize_payload({
@@ -512,7 +509,7 @@ async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tupl
         print(f"[Provider] Fallback also failed: {e}")
         raise
 
-# ── Internal / Infrastructure Model Call ────────────────────────────────────
+# ── Internal Call ────────────────────────────────────
 async def call_model_direct(
     provider_key: str,
     model_id: str,
@@ -522,15 +519,15 @@ async def call_model_direct(
     retries: int = 2,
 ) -> dict:
     """
-    Direct provider call for internal infrastructure models (router, agentic
+    direct provider call for internal infrastructure models (router, agentic
     planner, safeguard) that are not in the user-facing MODELS registry.
     `caps` is an optional capability dict for payload sanitization.
-    Returns the raw response JSON. Raises on total failure.
+    returns the raw response JSON. raises on total failure
     """
     clean = dict(payload)
     clean["model"] = model_id
     if caps:
-        # Merge extra_params and strip unsupported fields
+        # merge extra_params and strip unsupported fields
         for k, v in caps.get("extra_params", {}).items():
             clean.setdefault(k, v)
         for cap_key, payload_key in _CAPABILITY_FIELDS.items():
@@ -554,11 +551,11 @@ async def call_model_direct(
         raise last_exc
     raise RuntimeError(f"Direct model call failed with 0 retries configured for {model_id}")
 
-# ── Streaming Model Call ──────────────────────────────────────────────────────
+# ── Streaming Call ──────────────────────────────────────────────────────
 async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
     """
-    Call the provider for `model_key` and yield text chunks.
-    On 4xx errors, retries with stripped params, then falls back
+    call the provider for `model_key` and yield text chunks.
+    on 4xx errors, retries with stripped params, then falls back
     """
     model_info = MODELS.get(model_key, MODELS[FALLBACK_MODEL_KEY])
     provider_key = model_info["provider"]
@@ -593,7 +590,7 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
                 except json.JSONDecodeError:
                     continue
 
-    # Stage 1: Try normal payload
+    # stage 1 - normal
     success = False
     for attempt in range(retries):
         try:
@@ -617,7 +614,7 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
             if attempt < retries - 1:
                 await asyncio.sleep(2 + attempt * 2)
 
-    # Stage 2: Stripped params (same model)
+    # stage 2 - no params
     if not success:
         print(f"[Provider:Stream] Retrying {model_info['id']} with stripped parameters...")
         stripped_payload = dict(payload)
@@ -641,7 +638,7 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
         except Exception as e:
             print(f"[Provider:Stream] Stripped parameters retry failed for {model_info['id']}: {e}")
 
-    # Stage 3: Fallback
+    # stage 3 - fallback
     if not success:
         fallback = MODELS[FALLBACK_MODEL_KEY]
         print(f"⚠️ [Provider:Stream] Falling back to {fallback['id']}")

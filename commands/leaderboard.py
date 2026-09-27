@@ -12,8 +12,8 @@ class LeaderboardView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=180)
         self.bot = bot
-        self.category = "luck"  # default category
-        self.page = 0  # current page (0-indexed)
+        self.category = "luck"
+        self.page = 0
         self.entries_per_page = 10
         self.update_buttons_sync()
 

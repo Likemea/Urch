@@ -57,7 +57,6 @@ class SafetyDashboard(discord.ui.View):
         multiplier = stats.get("dynamic_multiplier", 1.0)
         kill = stats.get("kill_switch", False)
         
-        # DB stats
         try:
             db_stats = await db.get_conversation_stats()
             db_rows = db_stats.get("total_rows", "?")
@@ -366,7 +365,6 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
 
             await interaction.response.defer(ephemeral=True)
 
-            # We removed the DB fetching here. We are going in blind and scanning!
             total_deleted = 0
             channels_processed = 0
             
@@ -379,14 +377,12 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
             status_view = PurgeStatusView()
             status_msg = await interaction.followup.send(embed=status_embed, view=status_view, ephemeral=True)
 
-            # Gather ALL possible text sources securely
             channels_to_scan = []
             channels_to_scan.extend(getattr(guild, 'text_channels', []))
             channels_to_scan.extend(getattr(guild, 'voice_channels', []))
             channels_to_scan.extend(getattr(guild, 'stage_channels', []))
             channels_to_scan.extend(getattr(guild, 'forum_channels', []))
             
-            # Handle Threads (Active + Archived)
             channels_to_scan.extend(getattr(guild, 'threads', []))
             for channel in getattr(guild, 'text_channels', []):
                 try:
@@ -406,7 +402,6 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
                 bar = "█" * filled + "░" * (length - filled)
                 return f"`[{bar}] {int(percent * 100)}%`"
 
-            # Execution Loop
             for channel in channels_to_scan:
                 if status_view.is_cancelled:
                     break
@@ -417,7 +412,6 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
                         channels_processed += 1
                         continue
 
-                    # ONLY check if the bot sent it. No DB required.
                     deleted = await channel.purge(
                         limit=search_limit, 
                         check=lambda m: m.author.id == self.bot.user.id,
@@ -437,15 +431,10 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
                 
                 channels_processed += 1
                 
-                # Progress updates 
                 current_time = time.time()
                 time_since_last = current_time - last_update_time
                 channels_since_last = channels_processed - last_update_channels
                 deleted_since_last = total_deleted - last_update_deleted
-                
-                # UPDATE LOGIC: 
-                # Has it been at least 3s AND (did we scan 5+ channels OR delete 50+ msgs)?
-                # OR has it been 8s? (The "heartbeat" check so the user doesn't think it froze)
                 
                 needs_update = (time_since_last >= 3.0 and (channels_since_last >= 5 or deleted_since_last >= 50)) or (time_since_last >= 8.0)
 
@@ -470,7 +459,6 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
                 else:
                     await asyncio.sleep(0.1)
 
-            # Final Report
             if status_view.is_cancelled:
                 status_embed.title = "🛑 Purge Aborted"
                 status_embed.color = discord.Color.orange()
@@ -481,7 +469,6 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
                 )
                 await status_msg.edit(embed=status_embed, view=None)
             else:
-                # Wipe the entire guild from DB, regardless of purge results
                 try:
                     async with db._lock:
                         async with db.conn.execute("DELETE FROM conversation_history WHERE guild_id = ?", (guild_id_str,)):
@@ -597,14 +584,12 @@ class UserInspectModal(discord.ui.Modal, title="Inspect User Data"):
             if not data:
                 return await interaction.response.send_message(f"❌ No user data found for `{user_id}`.", ephemeral=True)
             
-            # Format main data
             main_info = f"**Rolls:** {data.get('roll_count', 0)}\n"
             main_info += f"**Luck Multi:** {data.get('luck_multi', 1.0)}x\n"
             main_info += f"**Max Luck:** {data.get('max_luck', 1.0)}x\n"
             main_info += f"**Clovers:** {data.get('currencies', {}).get('clovers', 0)}\n"
             main_info += f"**Autoroll:** {'Enabled' if data.get('autoroll_active') else 'Disabled'}"
             
-            # Format params
             param_info = f"**Model:** {params.get('model', 'Auto')}\n"
             param_info += f"**Temp:** {params.get('temperature', 0.75)}\n"
             param_info += f"**Tokens:** {params.get('max_completion_tokens', 1000)}\n"
@@ -638,7 +623,6 @@ class UserModifyModal(discord.ui.Modal, title="Modify User/Global Value"):
         if not table:
             return await interaction.response.send_message(f"❌ Unknown key: `{key}`. Check `KEY_TO_TABLE` in code.", ephemeral=True)
         
-        # Try to infer type
         try:
             if "." in raw_val:
                 value = float(raw_val)

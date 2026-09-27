@@ -2,7 +2,7 @@
 """
 Ephemeral Sandboxed Code Execution using Bubblewrap (bwrap).
 Provides process, network, and host filesystem isolation with strict
-CPU (5s), wall-clock (6s), and memory (60MB) constraints for the e2-micro host.
+CPU (5s), wall-clock (6s), and memory (100MB) constraints.
 """
 
 import asyncio
@@ -19,11 +19,11 @@ try:
 except ImportError:
     resource = None
 
-MAX_MEMORY_BYTES = 60 * 1024 * 1024  
+MAX_MEMORY_BYTES = 100 * 1024 * 1024  
 EXECUTION_TIMEOUT = 6.0                 
 
 def _set_limits():
-    """Enforces strict CPU and address space limits on the sandboxed child process."""
+    """Enforces CPU and memory limits on the sandboxed child process."""
     if resource is not None:
         resource.setrlimit(resource.RLIMIT_AS, (MAX_MEMORY_BYTES, MAX_MEMORY_BYTES))
         resource.setrlimit(resource.RLIMIT_CPU, (5, 6))
@@ -36,7 +36,6 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
     scratch_dir = os.path.join(tempfile.gettempdir(), f"urch_run_{uuid.uuid4().hex[:8]}")
     os.makedirs(scratch_dir, exist_ok=True)
 
-    # Enforce headless matplotlib and font cache isolation
     injected_code = (
         "import sys, os\n"
         "os.environ['MPLCONFIGDIR'] = '/tmp'\n"
@@ -87,7 +86,7 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
 
     try:
         if not shutil.which("bwrap") and not os.path.exists("/usr/bin/bwrap"):
-            return "❌ **Sandbox Error:** Bubblewrap (`bwrap`) is not available on this system.", []
+            return "❌ Bubblewrap (`bwrap`) is not available on this system.", []
 
         preexec = _set_limits if (resource is not None and sys.platform != "win32") else None
 
@@ -108,10 +107,8 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
         if raw_err:
             output += f"**Errors/Warnings:**\n```\n{raw_err[:800]}\n```\n"
         if not raw_out and not raw_err:
-            output = "*(Execution finished with no output)*"
+            output = "No output"
 
-        # Harvest generated artifacts (e.g., matplotlib figures) into in-memory buffers
-        # before the host scratch_dir is deleted.
         for fname in os.listdir(scratch_dir):
             if fname.lower().endswith((".png", ".jpg", ".svg", ".csv", ".json", ".mp4", ".gif", ".mp3", ".m4a", ".ogg", ".wav", ".flac", ".aac")) and fname != "script.py":
                 fpath = os.path.join(scratch_dir, fname)
@@ -122,14 +119,14 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
                     files.append(discord.File(fp=buf, filename=fname))
 
     except asyncio.TimeoutError:
-        output = "⏰ **Error:** Execution timed out (limit: 6 seconds)."
+        output = f"[Sandbox]: ⏰ Execution timed out (max {EXECUTION_TIMEOUT}s)."
         if proc:
             try:
                 proc.kill()
             except Exception:
                 pass
     except Exception as e:
-        output = f"❌ **Sandbox Error:** {str(e)}"
+        output = f"[Sandbox]: ❌ {str(e)}"
     finally:
         shutil.rmtree(scratch_dir, ignore_errors=True)
 

@@ -36,10 +36,8 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
         
     effects["exp_bonus"] *= checklist_exp_bonus
 
-    # Upgrades are expected in user["upgrades"] as categories:
     upgrades = user.get("upgrades", {})
 
-    # ---- Luck category ----
     luck_upgs = upgrades.get("luck", {})
     for key, tier in luck_upgs.items():
         if not tier: continue
@@ -63,7 +61,6 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
                 except Exception as e:
                     print(f"Error calculating luck upgrade {key}: {e}")
 
-        # exponential luck
         if key == "exp_luck" and key in LUCK_UPGRADES:
             rarity_names = [r[0] for r in RARITIES]
             best = user.get("highscore", rarity_names[0] if rarity_names else None)
@@ -79,7 +76,6 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
                 multiplier = 1.0
             effects["exp_bonus"] *= multiplier
 
-    # ---- Roll category ----
     roll_upgs = upgrades.get("roll", {})
     for key, tier in roll_upgs.items():
         if not tier: continue
@@ -103,7 +99,6 @@ def get_upgrade_effect(user_id: str, user_obj: dict = None, checklist_exp_bonus:
                     if res.get("autoroll_unlocked"):
                         effects["autoroll_unlocked"] = True
                     
-    # ---- Clover category ----
     clover_upgs = upgrades.get("clover", {})
     for key, tier in clover_upgs.items():
         if not tier: continue

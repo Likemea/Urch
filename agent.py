@@ -104,13 +104,11 @@ async def run_agent_loop(
             assistant_turn["tool_calls"] = tool_calls
         payload["messages"].append(assistant_turn)
 
-        # Condition A: No tool calls (terminal response reached)
         if not tool_calls or not supports_tools:
             final_text = content
             terminated_normally = True
             break
 
-        # Condition B: Tool calls present
         tool_names = [
             tc.get("function", {}).get("name", "unknown")
             for tc in tool_calls if isinstance(tc, dict)
@@ -137,7 +135,6 @@ async def run_agent_loop(
                 "content": str(tool_output),
             })
 
-    # Step ceiling reached with unresolved tools: finalize answer
     if not terminated_normally and supports_tools and not final_text:
         await _safe_update_status(status_message, "* 📝 Responding")
         final_payload = dict(payload)

@@ -9,7 +9,7 @@ import time
 from collections import defaultdict
 
 # ───────────────────────────────
-# MODEL TIER DEFINITIONS
+# MODEL TIERS
 # ───────────────────────────────
 # tier_key -> { models: [...], rps: float, rpm: int }
 DEFAULT_TIER_LIMITS = {

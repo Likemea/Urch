@@ -11,7 +11,7 @@ import config
 GROQ_API_KEY = config.GROQ_API_KEY
 GROQ_AUDIO_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 SUPPORTED_EXTENSIONS = ('.mp3', '.mp4', '.m4a', '.wav', '.webm', '.flac', '.ogg')
-MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
+MAX_FILE_SIZE = 25 * 1024 * 1024
 
 async def transcribe_audio_from_bytes(audio_bytes: bytes, filename: str) -> str:
     headers = {
@@ -96,9 +96,6 @@ class TranscribeCommand(commands.Cog):
     async def cog_unload(self):
         self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
-    # -----------------------------------------------------
-    # A. SLASH COMMAND (/transcribe)
-    # -----------------------------------------------------
     @app_commands.command(name="transcribe", description="Transcribe an audio file attachment")
     @app_commands.describe(file="Upload an audio file to transcribe (.mp3, .wav, .m4a, .ogg, etc.)")
     async def transcribe_slash(self, interaction: discord.Interaction, file: discord.Attachment):
@@ -108,9 +105,6 @@ class TranscribeCommand(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ {str(e)}")
 
-    # -----------------------------------------------------
-    # B. CONTEXT MENU CALLBACK ("Transcribe")
-    # -----------------------------------------------------
     async def transcribe_context(self, interaction: discord.Interaction, message: discord.Message):
         if not message.attachments:
             await interaction.response.send_message("❌ No attachment found on this message.", ephemeral=True)

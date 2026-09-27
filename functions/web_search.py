@@ -1,13 +1,13 @@
 # Urch/functions/web_search.py
 """
 Search engine integration using DuckDuckGo (ddgs).
-Returns structured titles, URLs, and snippets for multi-turn inspection.
+Returns structured titles, URLs, and snippets.
 """
 
 import asyncio
 from ddgs import DDGS
 
-def _ddgs_search_sync(query: str, max_results: int = 5) -> list[dict]:
+def _ddgs_search_sync(query: str, max_results: int = 3) -> list[dict]:
     results = []
     with DDGS() as ddgs:
         for r in ddgs.text(query, max_results=max_results):
@@ -18,7 +18,7 @@ def _ddgs_search_sync(query: str, max_results: int = 5) -> list[dict]:
             })
     return results
 
-async def web_search(query: str, max_results: int = 5) -> str:
+async def web_search(query: str, max_results: int = 3) -> str:
     """
     Searches DuckDuckGo and returns formatted results containing title, URL,
     and snippet for each match.

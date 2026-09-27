@@ -9,7 +9,6 @@ import pstats
 import io
 import os
 
-# non-interactive backend
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -116,18 +115,18 @@ class DiagnoseCommand(commands.Cog):
             timestamp=discord.utils.utcnow()
         )
         
-        embed.add_field(name="💻 CPU Usage", value=f"Avg: `{avg_cpu:.1f}%`\nMax: `{max_cpu:.1f}%`", inline=True)
+        embed.add_field(name="💻 CPU", value=f"Avg: `{avg_cpu:.1f}%`\nMax: `{max_cpu:.1f}%`", inline=True)
         embed.add_field(name="🧠 RAM (RSS)", value=f"Avg: `{avg_ram:.1f} MB`\nEnd: `{ram_history[-1]:.1f} MB`", inline=True)
-        embed.add_field(name="⌛ Loop Latency", value=f"Avg: `{avg_latency:.1f}ms`\nMax: `{max_latency:.1f}ms`", inline=True)
+        embed.add_field(name="⌛ Latency", value=f"Avg: `{avg_latency:.1f}ms`\nMax: `{max_latency:.1f}ms`", inline=True)
         embed.add_field(name="📡 Heartbeat", value=f"`{round(self.bot.latency * 1000)}ms`", inline=True)
         
         clean_profile = profile_text.replace(os.getcwd(), ".").strip()
         if len(clean_profile) > 1000:
             clean_profile = clean_profile[:997] + "..."
             
-        embed.add_field(name="🔝 Top Bottlenecks (Cumulative Time)", value=f"```\n{clean_profile}\n```", inline=False)
+        embed.add_field(name="🔝 Top Bottlenecks", value=f"```\n{clean_profile}\n```", inline=False)
         
-        footer_text = "Status: Healthy" if max_latency < 50 else "Status: Loop Blockage Detected" if max_latency > 200 else "Status: Minor Latency Spikes"
+        footer_text = "Healthy" if max_latency < 50 else "Loop blockage" if max_latency > 200 else "Minor latency"
         embed.set_footer(text=footer_text)
         
         if buf:

@@ -158,7 +158,7 @@ class Database:
         """):
             pass
         
-        # Rare hits table (meaningful rolls)
+        # meaningful rolls table
         async with self.conn.execute("""
             CREATE TABLE IF NOT EXISTS rare_hits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,21 +236,21 @@ class Database:
                     potion_id = curr_type.replace("potion_exp_", "")
                     recipe = POTION_RECIPES.get(potion_id)
                     dur = recipe["buff"].get("duration_seconds", 300) if recipe else 300
-                    # Max reasonable active duration cap is 2 hours or remaining time up to 2 hours
+                    # max reasonable active duration cap is 2 hours or remaining time up to 2 hours
                     max_allowed_exp = now + 7200
                     if amount > max_allowed_exp:
-                        # Reset/clamp to 1 full active potion duration from now
+                        # reset/clamp to 1 full active potion duration from now
                         new_exp = now + dur
                         updates.append((new_exp, user_id, curr_type))
                     elif amount < now and amount > 0:
-                        # Expired potion, clean up
+                        # expired potion, clean up
                         updates.append((0, user_id, curr_type))
 
                 elif curr_type.startswith("potion_charge_"):
                     potion_id = curr_type.replace("potion_charge_", "")
                     recipe = POTION_RECIPES.get(potion_id)
                     base_charges = recipe["buff"].get("charges", 50) if recipe else 50
-                    # Cap excessive charges to at most 2 batches (e.g. 100 charges)
+                    # cap excessive charges to at most 2 batches (e.g. 100 charges)
                     max_allowed_charges = base_charges * 2
                     if amount > max_allowed_charges:
                         updates.append((max_allowed_charges, user_id, curr_type))
@@ -648,7 +648,7 @@ class Database:
         async with self.conn.execute(sql, params) as cur:
             rows = await cur.fetchall()
             msgs = []
-            for row in reversed(rows): # Chronological
+            for row in reversed(rows): # chronological
                 m = {"role": row["role"], "content": row["content"]}
                 if include_internal:
                     m.update({"id": row["id"], "timestamp": row["timestamp"], "message_ids": json.loads(row["message_ids"] or "[]"), "author_id": row["author_id"]})
@@ -690,7 +690,7 @@ class Database:
         
         async with self._lock:
             async with self.transaction():
-                # We fetch all rows for the guild to check their message_ids JSON
+                # we fetch all rows for the guild to check their message_ids JSON
                 async with self.conn.execute(
                     "SELECT id, message_ids FROM conversation_history WHERE guild_id = ?", 
                     (str(guild_id),)

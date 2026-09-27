@@ -94,7 +94,7 @@ commands = [
         "options": [
             {
                 "name": "style", 
-                "description": "The artistic style to apply", 
+                "description": "The style to apply", 
                 "type": 3, 
                 "required": True,
                 "choices": [
@@ -379,85 +379,6 @@ commands = [
         ]
     },
     {
-        "name": "txt2aud",
-        "type": 1,
-        "description": "Generate speech or music from text via Pollinations",
-        "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS,
-        "options": [
-            {
-                "name": "prompt",
-                "description": "The text to generate audio/music for (max 4096 chars)",
-                "type": 3,
-                "required": True
-            },
-            {
-                "name": "model",
-                "description": "Audio model (nova-3 for speech, acestep for music)",
-                "type": 3,
-                "required": False,
-                "choices": [
-                    {"name": "Speech (nova-3)", "value": "nova-3"},
-                    {"name": "Music (AceStep)", "value": "acestep"}
-                ]
-            },
-            {
-                "name": "voice",
-                "description": "Voice preset to use (nova-3 speech only)",
-                "type": 3,
-                "required": False,
-                "choices": [
-                    {"name": "Alloy", "value": "alloy"},
-                    {"name": "Echo", "value": "echo"},
-                    {"name": "Fable", "value": "fable"},
-                    {"name": "Onyx", "value": "onyx"},
-                    {"name": "Nova", "value": "nova"},
-                    {"name": "Shimmer", "value": "shimmer"},
-                    {"name": "Rachel", "value": "rachel"},
-                    {"name": "Adam", "value": "adam"},
-                    {"name": "Daniel", "value": "daniel"},
-                    {"name": "Sam", "value": "sam"}
-                ]
-            },
-            {
-                "name": "duration",
-                "description": "Music duration in seconds, 3-60 (acestep music only)",
-                "type": 4,
-                "required": False
-            },
-            {
-                "name": "style",
-                "description": "Style/genre tags (acestep music only)",
-                "type": 3,
-                "required": False
-            },
-            {
-                "name": "instrumental",
-                "description": "Guarantees instrumental output (acestep music only)",
-                "type": 5,
-                "required": False
-            },
-            {
-                "name": "speed",
-                "description": "Speech speed, 0.25-4.0 (nova-3 speech only)",
-                "type": 10,
-                "required": False
-            },
-            {
-                "name": "instruct",
-                "description": "Emotion/style instruction (nova-3 speech only)",
-                "type": 3,
-                "required": False
-            },
-            {
-                "name": "seed",
-                "description": "Seed for reproducible results (-1 for random)",
-                "type": 4,
-                "required": False
-            }
-        ]
-    },
-    {
         "name": "glitch",
         "type": 1,
         "description": "Glitch an image or GIF",
@@ -540,16 +461,13 @@ headers = {
     "Content-Type": "application/json"
 }
 
-print(f"⏳ Overwriting global commands (Batch of {len(commands)})...")
+print(f"⏳ Updating ({len(commands)}) commands.")
 
-# Using PUT to overwrite ALL commands at once
 response = requests.put(url, headers=headers, json=commands)
 
 if response.status_code in [200, 201]:
-    print("✅ SUCCESS! All commands have been updated globally.")
-    print("NOTE: It may take up to 1 hour for these changes to appear in all clients.")
-    print("If commands disappear from Servers, verify 'Integration Types' includes 0 (Guild Install).")
+    print("✅ All commands updated")
+    print("It may take up to 1 hour for changes to appear in all clients")
 else:
-    print(f"❌ FAILED with code {response.status_code}")
-    print("Error details:")
+    print(f"❌ FAILED {response.status_code}")
     print(json.dumps(response.json(), indent=2))

@@ -47,12 +47,10 @@ class Txt2ImgCommand(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
-            # Prepare generation kwargs
             gen_kwargs = {
                 "seed": seed,
                 "enhance": enhance
             }
-            # Only support quality on gpt-image (model == "gpt-image-2")
             if model == "gpt-image-2":
                 gen_kwargs["quality"] = quality
 

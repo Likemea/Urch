@@ -195,7 +195,6 @@ async def generate_response(prompt, conversation_history, user_id, image_url=Non
         history=recent_history,
         user_params=user_params
     )
-    # Find the registry key for this model entry so call_provider can look it up
     chosen_key = next((k for k, v in MODELS.items() if v is chosen_model), "gemini-3.5-flash-lite")
     print(f"Picked model: {chosen_model['id']} (key={chosen_key}, provider={chosen_model['provider']})")
 
@@ -203,7 +202,7 @@ async def generate_response(prompt, conversation_history, user_id, image_url=Non
     for m in conversation_history:
         messages.append({"role": m["role"], "content": m["content"]})
 
-    # Vision: replace last user message with multimodal content if model supports it
+    # vision replaces last user message with visual content if model supports it
     if chosen_model.get("vision") and image_url:
         messages = [
             {"role": "user", "content": [
@@ -212,7 +211,7 @@ async def generate_response(prompt, conversation_history, user_id, image_url=Non
             ]}
         ]
 
-    # For streaming requests without tools (e.g., chat models on Pollinations)
+    # for streaming requests without tools
     is_dm = isinstance(channel, discord.DMChannel)
     guild_id = str(guild.id) if guild else None
     if stream and not chosen_model.get("tools") and chosen_model.get("provider") == "pollinations" and message_obj:
@@ -329,7 +328,6 @@ async def handle_streaming_response(chosen_key, payload, message, user_id_str, i
             pass
         return {"error": error_msg}
         
-# (Agentic planner deprecated, see agent.py)
 
 # ───────────────────────────────
 # SAFEGUARD

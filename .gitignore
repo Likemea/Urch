@@ -30,3 +30,4 @@ Thumbs.db
 *.pyc
 logs/
 data/*.db
+.ruff_cache/

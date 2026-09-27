@@ -47,7 +47,6 @@ async def generate_image(prompt: str, model: str = "dreamshaper", width: int = 5
                 image_binary = io.BytesIO(data)
                 image_binary.seek(0)
                 
-                # Determine extension based on content type or default to png
                 content_type = response.headers.get("Content-Type", "")
                 ext = "jpg" if "jpeg" in content_type else "png"
                 

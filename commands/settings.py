@@ -128,7 +128,6 @@ class PersonasView(discord.ui.View):
         self.add_item(back_btn)
 
     async def refresh_embed(self, interaction: discord.Interaction, msg=""):
-        # Fetch fresh data async
         personas, active_name = await get_user_personas(self.user_id)
         
         desc = f"**Current Persona:** `{active_name}`\n\n"

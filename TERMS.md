@@ -2,69 +2,83 @@
 
 **Last Updated:** May 19, 2026
 
-Welcome to **Urch AI & RNG** ("Urch", "we", "us", "our"), a free-tier, open-source Discord bot providing artificial intelligence utilities and luck-based gacha entertainment.
+These Terms of Service explain the rules for using **Urch AI & RNG** ("Urch", "we", "us", or "our"), a free and open-source Discord bot with AI features and a luck-based gacha game.
 
-By adding Urch to your Discord server or interacting with it via Direct Messages (DMs), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the bot.
-
----
-
-## 1. Description of Service
-
-Urch is an asynchronous Discord bot powered by third-party Large Language Models (LLMs) and image/audio/video generation systems, coupled with a luck-based gacha game.
-
-Urch is hosted on a free-tier, low-resource environment (Google Cloud e2-micro VM). Accordingly:
-
-- **No Guarantee of Service:** We do not guarantee continuous, uninterrupted, or secure access to the bot. Service may be suspended, terminated, or degraded at any time without notice.
-- **Cost:** Urch is provided 100% free of charge. No real-world transactions are conducted, requested, or supported.
+By adding Urch to a Discord server or using it through DMs, you agree to these terms. If you do not agree with them, please do not use Urch.
 
 ---
 
-## 2. Virtual RNG Economy & Progression
+## 1. The Service
 
-Urch features an entertainment-only rolling and upgrade system (including virtual "clovers", upgrades, inventories, and leaderboards).
+Urch is a Discord bot with AI features, image/audio/video generation, and a luck-based RNG game.
 
-- **No Real-World Value:** All virtual items, rolls, clover currencies, and statistics obtained via Urch are fictional. They have **zero** monetary or real-world value. They cannot be transferred, traded, or redeemed for cash, real-world goods, or services.
-- **Data Resets:** We reserve the right to perform database modifications, resets, or full system wipes (factory resets) at any time. This may happen due to performance optimizations, database corruption, updates, or at the sole discretion of the developers. You agree that we are not liable for any loss of virtual progression, highscores, or items.
+Urch runs on a low-resource Google Cloud VM and depends on third-party AI services. Because of this:
 
----
-
-## 3. AI-Generated Content & Disclaimers
-
-Urch facilitates interaction with third-party generative AI models (hosted by Groq, Pollinations.ai, and others).
-
-- **Inherent AI Limitations:** AI-generated outputs (text, images, audio) are produced by external mathematical models. They may be inaccurate, offensive, biased, or objectionable. Outputs do not reflect the opinions, beliefs, or policies of the Urch development team.
-- **User Responsibility:** You are solely responsible for how you interpret and use AI-generated outputs. We assume no liability for any reliance on information provided by the AI.
-- **Harmony Safeguard:** Urch uses an automated moderation system (Harmony Safeguard Model) to classify inputs and outputs. While this helps filter unsafe content, it is not infallible.
+* **Service availability:** Urch may be unavailable, slow, changed, or shut down at any time. We do not guarantee that the bot will always be online or available.
+* **Cost:** Urch is free to use. It does not support or require real-money purchases.
 
 ---
 
-## 4. Acceptable Use Policy
+## 2. Virtual Items and Progression
 
-To maintain a safe and stable environment on our free-tier hosting, you agree NOT to use the bot to:
+Urch includes fictional game systems such as rolls, clovers, upgrades, inventories, and leaderboards.
 
-1. **Abuse or Spam:** Deliberately spam requests or bypass rate limiters (such as our light, medium, and heavy RPS/RPM token buckets).
-2. **Jailbreak or Attack:** Attempt prompt injections, jailbreaks, or other adversarial actions designed to force the AI to violate safety guidelines or execute unauthorized code.
-3. **Generate Illegal/Unsafe Content:** Coerce the AI into producing hate speech, malware, explicit/NSFW content, harassment, or materials violating Discord's Terms of Service.
-4. **Automate Requests:** Use self-bots or automated scripts to trigger `/roll` or chat functions outside of the bot's native `/autoroll` feature.
+* **No real-world value:** Everything earned in Urch is virtual and has no monetary value. Items, currencies, rolls, and statistics cannot be exchanged for money, real-world goods, or services.
+* **Progression can be reset:** The database may be reset, modified, or wiped. This may happen because of updates, database problems, maintenance, performance issues, or other reasons. We cannot guarantee that your rolls, items, highscores, or other progress will be preserved.
 
 ---
 
-## 5. Termination & Access Controls
+## 3. AI-Generated Content
 
-The bot developers reserve the right to:
+Urch uses third-party AI services, including services provided by Groq and Pollinations.ai.
 
-- Limit, suspend, or permanently ban individual Discord users from interacting with the bot.
-- Block entire Discord servers (guilds) from using the bot.
-- Disable specific commands, tools, or model endpoints at any time for safety or resource management.
+AI-generated text, images, audio, and other content may be incorrect, offensive, biased, or otherwise unsuitable. AI responses are generated by external models and do not necessarily represent the views of the Urch developers.
 
----
+You are responsible for deciding whether information or content generated by Urch is appropriate to use or rely on.
 
-## 6. Limitation of Liability
-
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, URCH AND ITS DEVELOPERS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, PROGRESSION, OR GOODWILL, ARISING OUT OF OR IN CONNECTION WITH YOUR ACCESS TO OR USE OF THE BOT.
+Urch also uses an automated content moderation system. This system can make mistakes and does not guarantee that all unsafe content will be blocked.
 
 ---
 
-## 7. Changes to Terms
+## 4. Acceptable Use
 
-We may revise these Terms of Service at any time. Continued use of the bot after updates constitutes acceptance of the new terms. You can review the latest version in the GitHub repository or by hosting it locally.
+Please do not use Urch to:
+
+1. **Spam or abuse the bot:** Deliberately spam requests or attempt to bypass rate limits, including the light, medium, and heavy request limits.
+
+2. **Attack or jailbreak the AI:** Attempt prompt injections, jailbreaks, or other attacks intended to bypass the bot's safety systems or make it perform unauthorized actions.
+
+3. **Generate harmful or prohibited content:** Attempt to use Urch to generate illegal content, malware, hate speech, harassment, explicit/NSFW content, or content that violates Discord's Terms of Service.
+
+4. **Automate requests outside the bot:** Use self-bots, scripts, or other external automation to repeatedly trigger `/roll`, AI chat, or other commands. Use Urch's built-in `/autoroll` feature instead.
+
+---
+
+## 5. Access and Bans
+
+The Urch developers may restrict access to the bot when necessary.
+
+This includes:
+
+* Limiting, suspending, or permanently banning individual users.
+* Blocking entire Discord servers from using Urch.
+* Disabling commands, tools, or AI model endpoints.
+* Changing or removing features.
+
+These actions may be taken for abuse, safety, resource usage, maintenance, or other reasons.
+
+---
+
+## 6. Liability
+
+Urch is provided as-is. We are not responsible for losses or problems caused by using the bot, including loss of data, game progression, or access to the service, to the extent permitted by applicable law.
+
+---
+
+## 7. Changes to These Terms
+
+These Terms of Service may be updated from time to time.
+
+If you continue using Urch after the terms are updated, the updated terms will apply to your continued use of the bot.
+
+The latest version is available in the Urch GitHub repository. You may also host your own copy of Urch locally.
