@@ -31,3 +31,4 @@ Thumbs.db
 logs/
 data/*.db
 .ruff_cache/
+.pytest_cache/

@@ -22,7 +22,7 @@ DEFAULT_TIER_LIMITS = {
             "community/AkshayCoder48/gpt-4o-latest",
             "community/AkshayCoder48/deepseek-v3",
             "community/AkshayCoder48/step-3.7-flash",
-            "YoannDev90/laguna-s-2.1:free",
+            "YoannDev90/poolside-laguna-s-2.1:free",
             "openai",
             "nova-fast",
             "nemotron-3.5-lightning",
@@ -37,7 +37,7 @@ DEFAULT_TIER_LIMITS = {
         "models": [
             "openai/gpt-oss-20b",
             "deepseek/deepseek-v4.1-flash",
-            "qwen3.8-27b",
+            "qwen/qwen3.8-27b",
             "gpt-5.6-luna",
             "z-ai/glm-5.3-flash"
         ],
