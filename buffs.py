@@ -18,14 +18,17 @@ async def apply_potion_craft(user_id: str, potion_id: str, amount: int = 1) -> b
         await currency_add(user_id, key, buff["charges"] * amount)
     elif buff["type"] == "duration":
         key = f"potion_exp_{potion_id}"
-        current_exp = await currency_count(user_id, key)
-        if current_exp > now + 86400:
-            current_exp = now
-        start_time = max(now, current_exp)
-        new_exp = start_time + (buff["duration_seconds"] * amount)
-        
-        if current_exp > 0:
-            await currency_remove(user_id, key, current_exp)
+        stored_exp = await currency_count(user_id, key)
+    
+        if stored_exp > now + 86400 or (0 < stored_exp <= now):
+            await currency_remove(user_id, key, stored_exp)
+            stored_exp = 0
+    
+        base_exp = max(now, stored_exp)
+        new_exp = base_exp + (buff["duration_seconds"] * amount)
+    
+        if stored_exp > 0:
+            await currency_remove(user_id, key, stored_exp)
         await currency_add(user_id, key, new_exp)
         
     return True

@@ -505,10 +505,11 @@ async def get_messages_for_context(user_id, is_dm, guild_id=None, include_intern
     return await db.get_messages_for_context(user_id if is_dm else None, guild_id if not is_dm else None, 
                                            DM_HISTORY_LIMIT if is_dm else SERVER_HISTORY_LIMIT, include_internal, read_only)
 
-async def append_message_for_context(user_id, is_dm, role, content, guild_id=None, message_ids=None, author_id=None): 
+async def append_message_for_context(user_id, is_dm, role, content, guild_id=None, message_ids=None, author_id=None):
     db_user_id = str(user_id) if is_dm else None
     db_guild_id = str(guild_id) if not is_dm and guild_id else None
     final_author_id = str(author_id) if author_id else None
+    max_history = DM_HISTORY_LIMIT if is_dm else SERVER_HISTORY_LIMIT
 
     await db.add_conversation_message(
         user_id=db_user_id,
@@ -516,7 +517,8 @@ async def append_message_for_context(user_id, is_dm, role, content, guild_id=Non
         role=role,
         content=content,
         message_ids=message_ids,
-        author_id=final_author_id
+        author_id=final_author_id,
+        max_history=max_history,
     )
 
 async def update_message_in_history(user_id, is_dm, guild_id, message_id, new_content):

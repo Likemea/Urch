@@ -591,19 +591,39 @@ class Database:
     
     # --- Conversation History ---
 
-    async def add_conversation_message(self, user_id: str, guild_id: str, role: str, content: str, message_ids: list = None, author_id: str = None):
+    async def add_conversation_message(
+        self, user_id: str, guild_id: str, role: str, content: str,
+        message_ids: list = None, author_id: str = None, max_history: int = 20
+    ):
         await self._check_conn()
         timestamp = datetime.now(timezone.utc).isoformat()
-        
         msg_ids_json = json.dumps(message_ids) if message_ids else None
-        
+    
         async with self._lock:
-            async with self.conn.execute("""
-                INSERT INTO conversation_history 
-                (user_id, guild_id, role, content, timestamp, message_ids, author_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, guild_id, role, content, timestamp, msg_ids_json, author_id)):
-                await self.conn.commit()
+            async with self.transaction():
+                async with self.conn.execute("""
+                    INSERT INTO conversation_history
+                    (user_id, guild_id, role, content, timestamp, message_ids, author_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, guild_id, role, content, timestamp, msg_ids_json, author_id)):
+                    pass
+    
+                if user_id:
+                    async with self.conn.execute("""
+                        DELETE FROM conversation_history WHERE id NOT IN (
+                            SELECT id FROM conversation_history
+                            WHERE user_id = ? ORDER BY id DESC LIMIT ?
+                        ) AND user_id = ?
+                    """, (user_id, max_history, user_id)):
+                        pass
+                elif guild_id:
+                    async with self.conn.execute("""
+                        DELETE FROM conversation_history WHERE id NOT IN (
+                            SELECT id FROM conversation_history
+                            WHERE guild_id = ? ORDER BY id DESC LIMIT ?
+                        ) AND guild_id = ?
+                    """, (guild_id, max_history, guild_id)):
+                        pass
     
     async def append_message(self, user_id, guild_id, role, content, message_ids=None, author_id=None, max_history=20):
         await self._check_conn()

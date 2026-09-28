@@ -39,6 +39,41 @@ async def _safe_update_status(status_msg: Optional[discord.Message], text: str):
     except Exception as e:
         print(f"[Agent] Status message edit failed: {e}")
 
+def _flatten_tool_history(messages: list) -> list:
+    """Convert tool-call/response messages into plain assistant/user text
+    so the request can be made without a `tools` parameter."""
+    flattened = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            flattened.append(msg)
+            continue
+        role = msg.get("role")
+
+        if role == "tool":
+            tool_name = msg.get("name", "tool")
+            content = msg.get("content", "")
+            flattened.append({
+                "role": "user",
+                "content": f"[Tool Result for {tool_name}]:\n{content}",
+            })
+
+        elif role == "assistant" and msg.get("tool_calls"):
+            content = msg.get("content") or ""
+            if content.strip():
+                flattened.append({"role": "assistant", "content": content})
+            else:
+                names = ", ".join(
+                    c.get("function", {}).get("name", "tool")
+                    for c in msg["tool_calls"] if isinstance(c, dict)
+                )
+                flattened.append({
+                    "role": "assistant",
+                    "content": f"[Invoked tools: {names}]",
+                })
+        else:
+            flattened.append(msg)
+    return flattened
+
 async def run_agent_loop(
     chosen_key: str,
     base_messages: list,
@@ -46,9 +81,9 @@ async def run_agent_loop(
     status_message: Optional[discord.Message] = None
 ) -> dict:
     """
-    Executes an autonomous ReAct loop using native function calling.
+    Executes a loop
     Iterates up to MAX_STEPS = 5 times resolving tool calls until the model
-    produces a final response or reaches loop.
+    produces a final response.
     """
     start_time = time.perf_counter()
     model_info = MODELS.get(chosen_key, MODELS[FALLBACK_MODEL_KEY])
@@ -140,7 +175,7 @@ async def run_agent_loop(
         final_payload = dict(payload)
         final_payload.pop("tools", None)
         final_payload.pop("tool_choice", None)
-        final_payload["messages"] = list(payload["messages"]) + [
+        final_payload["messages"] = _flatten_tool_history(list(payload["messages"])) + [
             {
                 "role": "user",
                 "content": "Summarize your findings so far into a final, comprehensive response for the user based on the tool outputs above."

@@ -127,6 +127,7 @@ When the user's query involves:
 - Current events, real-time facts, research, links, or verification -> Select a [Tools]-capable model.
 - Calculations, data analysis, math, coding execution, or plotting charts -> Select a [Tools]-capable model (e.g., gemini-3.5-flash-lite, qwen3.8-27b).
 - Multi-part or complex agentic reasoning -> Select a [Tools]-capable or [Reasoning]-capable model.
+- Images attached in the prompt, image-related queries -> Select a [Vision]-capable model.
 - Simple conversation, chat, or basic knowledge -> Select lightweight models.
 
 You MUST output ONLY the ID (key) corresponding to the best model for the task (e.g., "gemini-3.5-flash-lite").
@@ -198,18 +199,35 @@ async def generate_response(prompt, conversation_history, user_id, image_url=Non
     chosen_key = next((k for k, v in MODELS.items() if v is chosen_model), "gemini-3.5-flash-lite")
     print(f"Picked model: {chosen_model['id']} (key={chosen_key}, provider={chosen_model['provider']})")
 
+    rl = getattr(bot, 'rate_limiter', None)
+    if rl:
+        try:
+            allowed, wait_time, reason = rl.check(user_id, model_id=chosen_model["id"])
+            if not allowed:
+                return {
+                    "error": f"⏳ Slow down! {reason} Try again in {wait_time:.1f}s."
+                }
+        except Exception as e:
+            print(f"Rate limiter error: {e}")
+
     messages = [system_msg]
     for m in conversation_history:
         messages.append({"role": m["role"], "content": m["content"]})
 
     # vision replaces last user message with visual content if model supports it
     if chosen_model.get("vision") and image_url:
-        messages = [
-            {"role": "user", "content": [
+        vision_turn = {
+            "role": "user",
+            "content": [
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": image_url}}
-            ]}
-        ]
+            ]
+        }
+        if messages and messages[-1]["role"] == "user":
+            messages[-1] = vision_turn
+        else:
+            messages.append(vision_turn)
+
 
     # for streaming requests without tools
     is_dm = isinstance(channel, discord.DMChannel)
@@ -302,16 +320,18 @@ async def handle_streaming_response(chosen_key, payload, message, user_id_str, i
             }
         
         # Safe - Final update
+        sent_ids = [target_msg.id]
         if len(final_content) > 2000:
-            await target_msg.edit(content=final_content[:1990] + "...")
             chunks = split_message(final_content)
             await target_msg.edit(content=chunks[0])
             for chunk in chunks[1:]:
-                await message.channel.send(chunk)
+                extra_msg = await message.channel.send(chunk)
+                sent_ids.append(extra_msg.id)
         else:
             await target_msg.edit(content=final_content)
         
-        await append_message_for_context(user_id_str, is_dm, "assistant", full_content, guild_id, message_ids=[target_msg.id])
+        await append_message_for_context(user_id_str, is_dm, "assistant", full_content, guild_id, message_ids=sent_ids)
+
         
         return {
             "raw_response": full_content,

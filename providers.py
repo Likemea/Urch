@@ -102,7 +102,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low-Medium weight. Features Chain-of-Thought (CoT) reasoning. Good for intermediate complexity and multi-step problem solving.",
+        "router_info": "Low-Medium weight. Features Chain-of-Thought (CoT) reasoning. Good for intermediate complexity and multi-step problem solving. Can think and use tools.",
     },
     "gpt-oss-120b": {
         "id": "openai/gpt-oss-120b",
@@ -113,7 +113,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Medium-High weight. Advanced complexity, native tool calling, and extended CoT. Ideal for agentic workflows.",
+        "router_info": "Medium-High weight. Advanced complexity, native tool calling, and extended CoT. Ideal for agentic workflows. Can think and use tools.",
     },
     "qwen3.8-27b": {
         "id": "qwen/qwen3.8-27b",
@@ -124,7 +124,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Medium-High weight. Alibaba's best open source model. Fast, cheap, and versatile.",
+        "router_info": "Medium-High weight. Alibaba's best open source model. Fast, cheap, and versatile. Can see, think, and use tools.",
     },
 
     # ── Pollinations ──────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ MODELS: dict = {
         "tools": False,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. 1K+ tokens per second.",
+        "router_info": "Lowest weight. 1K+ tokens per second. Extremely useless at everything except pretending to chat",
     },
     "muse-glimmer": {
         "id": "vendouple/muse-glimmer-30b:free",
@@ -148,7 +148,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Meta's open-weight agentic model.",
+        "router_info": "Lowest weight. Meta's open-weight agentic model. Can see, think, and use tools.",
     },
     "ministral-3-14b": {
         "id": "mikl-shortcuts/ministral-3",
@@ -159,7 +159,7 @@ MODELS: dict = {
         "tools": False,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Mistral's open-source lightweight model. Decent all-rounder.",
+        "router_info": "Lowest weight. Mistral's open-source lightweight model. Decent all-rounder. Can see.",
     },
     "gemini-2.5-flash": {
         "id": "community/AkshayCoder48/gemini-2.5-flash",
@@ -170,7 +170,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Google's legacy Flash model. Optimized for conversation.",
+        "router_info": "Lowest weight. Google's legacy Flash model. Optimized for conversation. Can think and use tools.",
     },
     "gpt-4o": {
         "id": "community/AkshayCoder48/gpt-4o-latest",
@@ -181,7 +181,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. The all-round workhorse for chat, writing and coding.",
+        "router_info": "Lowest weight. The all-round workhorse for chat, writing and coding. Can use tools.",
     },
     "deepseek-v3": {
         "id": "community/AkshayCoder48/deepseek-v3",
@@ -192,7 +192,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Efficient 685B MoE workhorse for chat, coding, and tool use.",
+        "router_info": "Lowest weight. Efficient 685B MoE workhorse for chat, coding, and tool use. Can think and use tools.",
     },
     "step-3.7-flash": {
         "id": "community/AkshayCoder48/step-3.7-flash",
@@ -203,7 +203,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Fast StepFun model for high-volume chat and tool-calling workloads. No refusals on creative or edgy prompts.",
+        "router_info": "Lowest weight. Fast StepFun model for high-volume chat and tool-calling workloads. No refusals on creative or edgy prompts. Can use tools.",
     },
     "laguna-s2.1": {
         "id": "YoannDev90/poolside-laguna-s-2.1:free",
@@ -214,7 +214,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Poolside's open-source lightweight model. Optimized for conversation.",
+        "router_info": "Lowest weight. Poolside's open-source lightweight model. Optimized for conversation. Can think and use tools.",
     },
     "nova-micro": {
         "id": "nova-fast",
@@ -225,7 +225,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Extremely fast and lightweight model for simple, low-complexity interactions.",
+        "router_info": "Lowest weight. Extremely fast and lightweight model for simple, low-complexity interactions. Can use tools.",
     },
     "nemotron-3.5-lightning": {
         "id": "nemotron-3.5-lightning",
@@ -236,7 +236,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": False,
         "routable": True,
-        "router_info": "Lowest weight. Fast open-weight reasoning for high-volume agent tasks, tool use and structured output.",
+        "router_info": "Lowest weight. Fast open-weight reasoning for high-volume agent tasks, tool use and structured output. Can use tools.",
     },
     "gpt-5.4-nano": {
         "id": "openai",
@@ -247,7 +247,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low weight. Efficient and reliable model for general tasks. It's very fast and supports vision.",
+        "router_info": "Low weight. Efficient and reliable model for general tasks. Can see, think, and use tools.",
     },
     "glm-5.3-flash": {
         "id": "z-ai/glm-5.3-flash",
@@ -258,7 +258,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low weight. Efficient and reliable model for general tasks. It's very fast and supports vision.",
+        "router_info": "Low weight. Zhipu's lightweight flagship designed for coding and agentic tasks. Can see, think, and use tools.",
     },
     "deepseek-v4.1-flash": {
         "id": "deepseek/deepseek-v4.1-flash",
@@ -269,7 +269,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low-medium weight. Frontier reasoning & coding. Very cheap.",
+        "router_info": "Low-medium weight. Frontier reasoning & coding. Can see, think, and use tools.",
     },
     "gpt-5.6-luna": {
         "id": "gpt-5.6-luna",
@@ -280,7 +280,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Medium weight. Well-rounded, cheap and fast model with good agentic capabilities.",
+        "router_info": "Medium weight. Well-rounded, cheap and fast model with good agentic capabilities. Can see, think, and use tools.",
     },
     "minimax": {
         "id": "minimax",
@@ -291,7 +291,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Medium-high weight. Coding, agentic & multi-language. 1M context reasoning.",
+        "router_info": "Medium-high weight. Coding, agentic & multi-language. 1M context reasoning. Can see, think, and use tools.",
     },
     # ── Google AI Studio ──────────────────────────────────────────────────────
     "gemma-4-26b-a4b-it": {
@@ -303,7 +303,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low weight. A Mixture-of-Experts model that activates only 4B parameters per inference, delivering high-performance reasoning with a fraction of the memory cost — ideal for cost-efficient, high-throughput server deployments.",
+        "router_info": "Low weight. A Mixture-of-Experts model that activates only 4B parameters per inference, delivering high-performance reasoning with a fraction of the memory cost — ideal for cost-efficient, high-throughput server deployments. Can see, think, and use tools.",
     },
     "gemma-4-31b-it": {
         "id": "gemma-4-31b-it",
@@ -314,7 +314,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low weight. Google DeepMind's flagship open-weight dense model, purpose-built for maximum quality in data center environments with a 256K context window and advanced long-context architecture.",
+        "router_info": "Low weight. Google DeepMind's flagship open-weight dense model, purpose-built for maximum quality in data center environments with a 256K context window and advanced long-context architecture. Can see, think, and use tools.",
     },
     "gemini-3.5-flash-lite": {
         "id": "gemini-3.5-flash-lite",
@@ -325,7 +325,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "Low-medium weight. Ultra-lightweight and extremely fast, optimized for high-volume agentic tasks, translation, and simple data processing.",
+        "router_info": "Low-medium weight. Ultra-lightweight and extremely fast, optimized for high-volume agentic tasks, translation, and simple data processing. Can see, think, and use tools.",
     },
     "gemini-3.8-flash": {
         "id": "gemini-3.8-flash",
@@ -336,7 +336,7 @@ MODELS: dict = {
         "tools": True,
         "response_format": True,
         "routable": True,
-        "router_info": "High weight. Google's most intelligent model for sustained frontier performance in agentic and coding tasks.",
+        "router_info": "High weight. Google's most intelligent model for sustained frontier performance in agentic and coding tasks. Can see, think, and use tools.",
     },
 }
 
@@ -373,7 +373,7 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
     if clean.get("tools"):
         clean.pop("response_format", None)
 
-    if clean.get("reasoning_effort") == "none":
+    if clean.get("reasoning_effort") == "Auto":
         clean.pop("reasoning_effort", None)
 
     # sanitize message history based on tool capability

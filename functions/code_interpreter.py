@@ -82,9 +82,6 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
         
         "--ro-bind", "/usr", "/usr",
         "--ro-bind", "/lib", "/lib",
-        "--ro-bind", "/lib64", "/lib64",
-        "--ro-bind", "/bin", "/bin",
-        "--ro-bind", "/etc", "/etc",
         
         "--setenv", "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "--setenv", "HOME", "/tmp",
