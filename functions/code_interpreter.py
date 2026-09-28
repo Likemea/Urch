@@ -19,8 +19,24 @@ try:
 except ImportError:
     resource = None
 
-MAX_MEMORY_BYTES = 100 * 1024 * 1024  
-EXECUTION_TIMEOUT = 6.0                 
+MAX_MEMORY_BYTES = 100 * 1024 * 1024
+EXECUTION_TIMEOUT = 6.0
+ALLOWED_EXTENSIONS = (
+    # archives, code
+    ".zip", ".tar", ".gz", ".7z",
+    ".py", ".js", ".ts", ".java", ".cpp", ".c", ".cs", ".go", ".rs", ".sh",
+    
+    # web, configs
+    ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml",
+    
+    # docs, data
+    ".txt", ".md", ".log", ".csv", ".xlsx", ".pdf",
+    
+    # media
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".mp3", ".wav", ".ogg", ".flac", ".m4a",
+    ".mp4", ".webm"
+)              
 
 def _set_limits():
     """Enforces CPU and memory limits on the sandboxed child process."""
@@ -60,9 +76,23 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
         "--unshare-all",
         "--unshare-net",
         "--die-with-parent",
+        "--new-session",
+        "--disable-userns",
+        "--clearenv",
+        
         "--ro-bind", "/usr", "/usr",
         "--ro-bind", "/lib", "/lib",
-    ]
+        "--ro-bind", "/lib64", "/lib64",
+        "--ro-bind", "/bin", "/bin",
+        "--ro-bind", "/etc", "/etc",
+        
+        "--setenv", "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "--setenv", "HOME", "/tmp",
+        "--setenv", "PYTHONPATH", "/workspace",
+        "--setenv", "OPENBLAS_NUM_THREADS", "1",
+        "--setenv", "OMP_NUM_THREADS", "1",
+        "--setenv", "MPLCONFIGDIR", "/tmp",
+]
 
     for path in ["/lib64", "/bin", "/etc/alternatives", "/etc/ld.so.cache"]:
         if os.path.exists(path):
@@ -110,7 +140,7 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
             output = "No output"
 
         for fname in os.listdir(scratch_dir):
-            if fname.lower().endswith((".png", ".jpg", ".svg", ".csv", ".json", ".mp4", ".gif", ".mp3", ".m4a", ".ogg", ".wav", ".flac", ".aac")) and fname != "script.py":
+            if fname.lower().endswith(ALLOWED_EXTENSIONS) and fname != "script.py":
                 fpath = os.path.join(scratch_dir, fname)
                 if os.path.isfile(fpath) and os.path.getsize(fpath) <= 8 * 1024 * 1024:
                     with open(fpath, "rb") as af:

@@ -43,8 +43,8 @@ class UserInfoCommand(commands.Cog):
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.set_author(name=f"{target.display_name} (@{target.name})", icon_url=target.display_avatar.url)
 
-        embed.add_field(name="User ID", value=f"`{target.id}`", inline=True)
-        embed.add_field(name="Account Type", value="Bot 🤖" if target.bot else "Human 👤", inline=True)
+        embed.add_field(name="ID", value=f"`{target.id}`", inline=True)
+        embed.add_field(name="Type", value="🤖" if target.bot else "👤", inline=True)
 
         user_flags = [flag_name for flag_name, value in target.public_flags if value]
         badges = [BADGE_MAPPING.get(flag, flag.replace("_", " ").title()) for flag in user_flags]
@@ -101,7 +101,7 @@ class UserInfoCommand(commands.Cog):
             embed.set_image(url=target.banner.url)
 
         embed.add_field(name="Profile Links", value=" • ".join(links), inline=False)
-        embed.set_footer(text=f"Requested by {interaction.user}", icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f"{interaction.user}", icon_url=interaction.user.display_avatar.url)
 
         await interaction.response.send_message(embed=embed)
 
