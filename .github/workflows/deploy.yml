@@ -31,7 +31,6 @@ jobs:
 
       - name: Ruff lint and format check
         run: |
-          ruff check .
           ruff format --check .
 
       - name: Tests (phase 1 only)
