@@ -1,4 +1,4 @@
-# tests/test_phase1_initialization.py
+# tests/test_phase1.py
 """
 Phase 1 — Initialization.
 Verifies the bot can be imported, that registries are self-consistent, and

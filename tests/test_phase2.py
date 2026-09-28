@@ -1,4 +1,4 @@
-# tests/test_phase2_database.py
+# tests/test_phase2.py
 """
 Phase 2 — Database.
 Exercises the Database class, transaction/lock semantics, and the utils

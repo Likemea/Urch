@@ -1,4 +1,4 @@
-# tests/test_phase3_commands.py
+# tests/test_phase3.py
 """
 Phase 3 — Commandry.
 Loads every command module into a fresh commands.Bot and verifies that
