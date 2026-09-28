@@ -1,0 +1,161 @@
+name: Lint, Test, and Deploy Urch
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:   # manual re-deploy from the Actions tab
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff==0.16.9 pytest==9.1.1
+
+      - name: Ruff lint and format check
+        run: |
+          ruff format --check .
+
+      - name: Tests (phase 1 only)
+        env:
+          BOT_TOKEN: "dummy_token_for_ci_testing_only"
+          GROQ_API_KEY: "dummy_key"
+          POLLINATIONS_API_KEY: "dummy_key"
+          GOOGLE_API_KEY: "dummy_key"
+        run: pytest -q -x tests/test_phase1.py
+
+  deploy:
+    needs: quality-check
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deploy to GCP VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          fingerprint: ${{ secrets.VM_HOST_FINGERPRINT }}
+          command_timeout: 7m
+          script: |
+            # Make pm2 visible in this non-interactive shell (nvm / npm-global installs).
+            # Runs before `set -u` because nvm.sh is not nounset-safe.
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            export PATH="$HOME/.npm-global/bin:/usr/local/bin:$PATH"
+
+            set -Eeuo pipefail   # -E so the ERR trap also fires inside functions
+
+            APP_NAME="Urch"
+            APP_DIR="/home/Dani/Urch"
+            VENV_PY="/home/Dani/.venv/bin/python"
+            VENV_PIP="/home/Dani/.venv/bin/pip"
+            TARGET_SHA="${{ github.sha }}"   # deploy the commit that passed CI, not whatever main is now
+            STABLE_SECS=25                   # how long the bot must stay up without restarting
+
+            command -v pm2 >/dev/null || { echo "::error::pm2 not found in PATH"; exit 1; }
+
+            # Prints "<status> <restart_count> <uptime_s>", or "missing 0 0" / "unknown 0 0".
+            # Parsed with the venv's Python (no jq needed on the VM) and tolerant of
+            # any warning text pm2 prints before the JSON.
+            pm2_state() {
+              pm2 jlist 2>/dev/null | "$VENV_PY" -c '
+            import json, sys, time
+            raw = sys.stdin.read()
+            try:
+                apps, _ = json.JSONDecoder().raw_decode(raw[raw.index("["):])
+            except ValueError:
+                print("unknown 0 0"); sys.exit(0)
+            app = next((a for a in apps if a.get("name") == sys.argv[1]), None)
+            if not app:
+                print("missing 0 0"); sys.exit(0)
+            env = app["pm2_env"]
+            up = max(0, int(time.time() - env.get("pm_uptime", 0) / 1000))
+            print(env.get("status", "unknown"), env.get("restart_time", 0), up)
+            ' "$APP_NAME" || echo "unknown 0 0"
+            }
+
+            cd "$APP_DIR"
+            PREV_COMMIT=$(git rev-parse HEAD)
+            REQS_CHANGED=0
+            TOUCHED=0   # becomes 1 once we start modifying the working tree
+
+            rollback() {
+              trap - ERR
+              set +e
+              echo "::error::Deployment failed."
+              if [ "$TOUCHED" = "1" ]; then
+                echo "Rolling back to ${PREV_COMMIT:0:7}..."
+                cd "$APP_DIR"
+                git reset --hard "$PREV_COMMIT"
+                if [ "$REQS_CHANGED" = "1" ]; then
+                  "$VENV_PIP" install --no-cache-dir -r requirements.txt
+                fi
+                pm2 restart "$APP_NAME" || pm2 resurrect
+                sleep 10
+                pm2 logs "$APP_NAME" --lines 50 --nostream
+                echo "State after rollback: $(pm2_state)"
+              else
+                echo "Nothing was changed on the VM"
+              fi
+              exit 1
+            }
+            trap rollback ERR
+
+            echo "Current: ${PREV_COMMIT:0:7}  ->  target: ${TARGET_SHA:0:7}"
+
+            # 1. Fetch then confirm the CI-tested commit actually arrived.
+            git fetch --prune origin main
+            git cat-file -e "${TARGET_SHA}^{commit}"
+
+            # 2. Only touch pip if requirements.txt actually changed (saves RAM/CPU on the e2-micro).
+            if ! git diff --quiet "$PREV_COMMIT" "$TARGET_SHA" -- requirements.txt; then
+              REQS_CHANGED=1
+            fi
+
+            TOUCHED=1
+            git reset --hard "$TARGET_SHA"
+
+            if [ "$REQS_CHANGED" = "1" ]; then
+              echo "requirements.txt changed - installing pinned dependencies..."
+              "$VENV_PIP" install --no-cache-dir -r requirements.txt
+            else
+              echo "requirements.txt unchanged - skipping pip."
+            fi
+
+            # 3. Restart, then take the restart counter as the baseline.
+            pm2 restart "$APP_NAME"
+            read -r _ BASE_RESTARTS _ <<< "$(pm2_state)"
+
+            # 4. Health check: must stay online AND not restart again (catches crash loops).
+            echo "Watching $APP_NAME for ${STABLE_SECS}s..."
+            for _ in $(seq 1 $((STABLE_SECS / 5))); do
+              sleep 5
+              read -r STATUS RESTARTS UPTIME <<< "$(pm2_state)"
+              if [ "$STATUS" != "online" ] || [ "$RESTARTS" -gt "$BASE_RESTARTS" ]; then
+                echo "::error::Unhealthy: status=$STATUS, restarts=$RESTARTS (baseline $BASE_RESTARTS)"
+                false   # triggers ERR trap -> rollback
+              fi
+            done
+
+            trap - ERR
+            pm2 save
+            echo "✅ Deployed ${TARGET_SHA:0:7}; $APP_NAME online and stable (uptime ${UPTIME}s)."
