@@ -5,7 +5,8 @@ import discord
 import numpy as np
 from discord import app_commands
 from discord.ext import commands
-from PIL import Image, ImageOps, ImageEnhance, ImageChops
+from PIL import Image, ImageEnhance
+
 
 class GlitchCommand(commands.Cog):
     def __init__(self, bot):
@@ -13,18 +14,24 @@ class GlitchCommand(commands.Cog):
 
     @app_commands.command(name="glitch", description="Glitch an image or GIF")
     @app_commands.describe(
-        image="The image or GIF to glitch",
-        intensity="How glitchy it should be (1-10)"
+        image="The image or GIF to glitch", intensity="How glitchy it should be (1-10)"
     )
-    async def glitch(self, interaction: discord.Interaction, image: discord.Attachment, intensity: int = 5):
+    async def glitch(
+        self, interaction: discord.Interaction, image: discord.Attachment, intensity: int = 5
+    ):
         await interaction.response.defer(thinking=True)
 
         if not (1 <= intensity <= 10):
             await interaction.followup.send("Intensity must be between 1 and 10", ephemeral=True)
             return
 
-        if not (image.content_type.startswith('image') or image.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))):
-            await interaction.followup.send("Only PNG, JPG, and GIF files supported", ephemeral=True)
+        if not (
+            image.content_type.startswith("image")
+            or image.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
+        ):
+            await interaction.followup.send(
+                "Only PNG, JPG, and GIF files supported", ephemeral=True
+            )
             return
 
         try:
@@ -34,7 +41,7 @@ class GlitchCommand(commands.Cog):
             await interaction.followup.send(f"❌ Failed to load image: {e}", ephemeral=True)
             return
 
-        is_gif = image.filename.lower().endswith('.gif')
+        is_gif = image.filename.lower().endswith(".gif")
         if is_gif:
             frames = []
             try:
@@ -64,14 +71,11 @@ class GlitchCommand(commands.Cog):
                 append_images=glitched_frames[1:],
                 duration=150 if is_gif else 250,
                 loop=0,
-                disposal=2
+                disposal=2,
             )
             output.seek(0)
             filename = f"glitched_{'gif' if is_gif else 'img'}_lvl{intensity}.gif"
-            await interaction.followup.send(
-                f"",
-                file=discord.File(output, filename=filename)
-            )
+            await interaction.followup.send(f"", file=discord.File(output, filename=filename))
 
     def apply_glitch(self, img: Image.Image, intensity: float) -> Image.Image:
         w, h = img.size
@@ -118,6 +122,7 @@ class GlitchCommand(commands.Cog):
             noisy = np.where(mask[..., None], noise, np.array(pil_img))
             pil_img = Image.fromarray(noisy.astype(np.uint8))
         return pil_img
+
 
 async def setup(bot):
     await bot.add_cog(GlitchCommand(bot))

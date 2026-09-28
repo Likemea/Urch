@@ -5,18 +5,19 @@ Supports Groq and Pollinations.ai (gen.pollinations.ai unified API).
 All providers expose an OpenAI-compatible /v1/chat/completions endpoint.
 """
 
-import os
 import asyncio
 import aiohttp
 import json
 import config
 from typing import Optional
 
+
 class ProviderClientError(Exception):
     def __init__(self, status: int, message: str):
         self.status = status
         self.message = message
         super().__init__(f"Client error {status}: {message}")
+
 
 # ── Provider Registry ─────────────────────────────────────────────────────────
 PROVIDERS: dict = {
@@ -38,46 +39,46 @@ PROVIDERS: dict = {
 # ── Image Model Registry ──────────────────────────────────────────────────────
 IMAGE_MODELS: dict = {
     "dreamshaper": {
-        "id": "dreamshaper", 
+        "id": "dreamshaper",
         "disp": "DreamShaper 8 LCM",
         "routable": True,
-        "router_info": "Default. Ultra-fast, Ultra-low-cost image generation."
+        "router_info": "Default. Ultra-fast, Ultra-low-cost image generation.",
     },
     "flux": {
-        "id": "flux", 
+        "id": "flux",
         "disp": "Flux Schnell",
         "routable": False,
-        "router_info": "Legacy model; very fast but may not be coherent. Bad for text."
+        "router_info": "Legacy model; very fast but may not be coherent. Bad for text.",
     },
     "zimage": {
-        "id": "zimage", 
+        "id": "zimage",
         "disp": "Z-Image Turbo",
         "routable": False,
-        "router_info": "Fast and versatile model. Good for all-around use cases. Has a decent sense of text, but not great."
+        "router_info": "Fast and versatile model. Good for all-around use cases. Has a decent sense of text, but not great.",
     },
     "gptimage": {
-        "id": "gptimage", 
+        "id": "gptimage",
         "disp": "GPT Image 1 Mini",
         "routable": False,
-        "router_info": "DALL-E style model. Good for artistic, stylized, and creative concepts. High consistency."
+        "router_info": "DALL-E style model. Good for artistic, stylized, and creative concepts. High consistency.",
     },
     "gpt-image-2": {
-        "id": "gpt-image-2", 
+        "id": "gpt-image-2",
         "disp": "GPT Image 2",
         "routable": False,
-        "router_info": "The most powerful image model."
+        "router_info": "The most powerful image model.",
     },
     "klein": {
-        "id": "klein", 
+        "id": "klein",
         "disp": "FLUX.2 Klein 4B",
         "routable": False,
-        "router_info": "Minimalist and clean aesthetic. Good for logos, icons, and simple designs."
+        "router_info": "Minimalist and clean aesthetic. Good for logos, icons, and simple designs.",
     },
     "kontext": {
-        "id": "kontext", 
+        "id": "kontext",
         "disp": "FLUX.1 Kontext",
         "routable": False,
-        "router_info": "Experimental model. Best for abstract and conceptual art. Bad for text."
+        "router_info": "Experimental model. Best for abstract and conceptual art. Bad for text.",
     },
 }
 # ── Model Registry ────────────────────────────────────────────────────────────
@@ -126,7 +127,6 @@ MODELS: dict = {
         "routable": True,
         "router_info": "Medium-High weight. Alibaba's best open source model. Fast, cheap, and versatile. Can see, think, and use tools.",
     },
-
     # ── Pollinations ──────────────────────────────────────────────────────────
     "llama3.1-8b": {
         "id": "community/ZapGaming/llama3.1-8b-xturbo",
@@ -347,6 +347,7 @@ _CAPABILITY_FIELDS = {
     "response_format": "response_format",
 }
 
+
 def sanitize_payload(payload: dict, caps: dict) -> dict:
     """
     Returns a clean copy of payload with unsupported fields stripped based on
@@ -384,34 +385,44 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
             if not isinstance(msg, dict):
                 sanitized_messages.append(msg)
                 continue
-            
+
             msg_copy = dict(msg)
             role = msg_copy.get("role")
-            
+
             if not supports_tools:
                 # if model doesn't support tools, convert tool output messages to user role
                 if role == "tool":
                     tool_name = msg_copy.get("name", "tool")
                     tool_content = msg_copy.get("content", "")
-                    sanitized_messages.append({
-                        "role": "user",
-                        "content": f"[Tool Result for {tool_name}]:\n{tool_content}"
-                    })
+                    sanitized_messages.append(
+                        {
+                            "role": "user",
+                            "content": f"[Tool Result for {tool_name}]:\n{tool_content}",
+                        }
+                    )
                     continue
                 elif role == "assistant" and "tool_calls" in msg_copy:
                     # strip tool_calls and put example text if content is empty
                     calls = msg_copy.pop("tool_calls", [])
                     if not msg_copy.get("content"):
-                        names = ", ".join([c.get("function", {}).get("name", "") for c in calls if isinstance(c, dict)])
+                        names = ", ".join(
+                            [
+                                c.get("function", {}).get("name", "")
+                                for c in calls
+                                if isinstance(c, dict)
+                            ]
+                        )
                         msg_copy["content"] = f"[Invoked tools: {names}]"
-            
+
             sanitized_messages.append(msg_copy)
         clean["messages"] = sanitized_messages
 
     return clean
 
+
 # ── Global HTTP Session ───────────────────────────────────────────────────────
 _session: Optional[aiohttp.ClientSession] = None
+
 
 async def get_session() -> aiohttp.ClientSession:
     """Get the shared, global aiohttp.ClientSession."""
@@ -420,12 +431,14 @@ async def get_session() -> aiohttp.ClientSession:
         _session = aiohttp.ClientSession()
     return _session
 
+
 async def close_session():
     """Gracefully close the global aiohttp.ClientSession."""
     global _session
     if _session is not None and not _session.closed:
         await _session.close()
     _session = None
+
 
 # ── Low-level HTTP ────────────────────────────────────────────────────────────
 async def _post(provider_key: str, payload: dict, timeout: int = 20):
@@ -436,11 +449,10 @@ async def _post(provider_key: str, payload: dict, timeout: int = 20):
     }
     if cfg.get("api_key"):
         headers["Authorization"] = f"Bearer {cfg['api_key']}"
-    
+
     session = await get_session()
     async with session.post(
-        cfg["url"], headers=headers, json=payload,
-        timeout=aiohttp.ClientTimeout(total=timeout)
+        cfg["url"], headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=timeout)
     ) as resp:
         if 400 <= resp.status < 500:
             body = await resp.text()
@@ -448,8 +460,10 @@ async def _post(provider_key: str, payload: dict, timeout: int = 20):
         resp.raise_for_status()
         return await resp.json()
 
+
 # ── User-facing Call ────────────────────────────────────────────────────
 FALLBACK_MODEL_KEY = "llama3.1-8b"
+
 
 async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tuple:
     """
@@ -470,12 +484,16 @@ async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tupl
             resp = await _post(provider_key, clean)
             return resp, model_info["id"]
         except ProviderClientError as pce:
-            print(f"[Provider] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries} "
-                  f"for {model_info['id']} ({provider_key}): {pce.message}")
+            print(
+                f"[Provider] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries} "
+                f"for {model_info['id']} ({provider_key}): {pce.message}"
+            )
             break
         except Exception as e:
-            print(f"[Provider] Attempt {attempt + 1}/{retries} failed "
-                  f"for {model_info['id']} ({provider_key}): {e}")
+            print(
+                f"[Provider] Attempt {attempt + 1}/{retries} failed "
+                f"for {model_info['id']} ({provider_key}): {e}"
+            )
             if attempt < retries - 1:
                 await asyncio.sleep(2 + attempt * 2)
             else:
@@ -496,18 +514,22 @@ async def call_provider(model_key: str, payload: dict, retries: int = 2) -> tupl
     # stage 3 - fallback
     fallback = MODELS[FALLBACK_MODEL_KEY]
     print(f"⚠️ All stages failed. Falling back to {fallback['id']}")
-    fallback_payload = sanitize_payload({
-        "messages": payload.get("messages", []),
-        "temperature": 0.7,
-        "top_p": 0.4,
-        "max_completion_tokens": 1000,
-    }, fallback)
+    fallback_payload = sanitize_payload(
+        {
+            "messages": payload.get("messages", []),
+            "temperature": 0.7,
+            "top_p": 0.4,
+            "max_completion_tokens": 1000,
+        },
+        fallback,
+    )
     try:
         resp = await _post(fallback["provider"], fallback_payload)
         return resp, fallback["id"]
     except Exception as e:
         print(f"[Provider] Fallback also failed: {e}")
         raise
+
 
 # ── Internal Call ────────────────────────────────────
 async def call_model_direct(
@@ -542,14 +564,17 @@ async def call_model_direct(
             return await _post(provider_key, clean, timeout=timeout)
         except Exception as e:
             last_exc = e
-            print(f"[Provider:Direct] Attempt {attempt + 1}/{retries} "
-                  f"failed for {model_id} ({provider_key}): {e}")
+            print(
+                f"[Provider:Direct] Attempt {attempt + 1}/{retries} "
+                f"failed for {model_id} ({provider_key}): {e}"
+            )
             if attempt < retries - 1:
                 await asyncio.sleep(1 + attempt)
 
     if last_exc is not None:
         raise last_exc
     raise RuntimeError(f"Direct model call failed with 0 retries configured for {model_id}")
+
 
 # ── Streaming Call ──────────────────────────────────────────────────────
 async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
@@ -570,10 +595,10 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
         headers["Authorization"] = f"Bearer {cfg['api_key']}"
 
     session = await get_session()
-    
+
     async def consume_stream(response):
         async for line in response.content:
-            line_text = line.decode('utf-8').strip()
+            line_text = line.decode("utf-8").strip()
             if not line_text:
                 continue
             if line_text.startswith("data: "):
@@ -595,8 +620,7 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
     for attempt in range(retries):
         try:
             async with session.post(
-                cfg["url"], headers=headers, json=clean,
-                timeout=aiohttp.ClientTimeout(total=60)
+                cfg["url"], headers=headers, json=clean, timeout=aiohttp.ClientTimeout(total=60)
             ) as resp:
                 if 400 <= resp.status < 500:
                     body = await resp.text()
@@ -607,7 +631,9 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
                 success = True
                 return
         except ProviderClientError as pce:
-            print(f"[Provider:Stream] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries}: {pce.message}")
+            print(
+                f"[Provider:Stream] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries}: {pce.message}"
+            )
             break
         except Exception as e:
             print(f"[Provider:Stream] Attempt {attempt + 1}/{retries} failed: {e}")
@@ -624,8 +650,10 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
         clean_stripped["stream"] = True
         try:
             async with session.post(
-                cfg["url"], headers=headers, json=clean_stripped,
-                timeout=aiohttp.ClientTimeout(total=60)
+                cfg["url"],
+                headers=headers,
+                json=clean_stripped,
+                timeout=aiohttp.ClientTimeout(total=60),
             ) as resp:
                 if 400 <= resp.status < 500:
                     body = await resp.text()
@@ -642,24 +670,29 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
     if not success:
         fallback = MODELS[FALLBACK_MODEL_KEY]
         print(f"⚠️ [Provider:Stream] Falling back to {fallback['id']}")
-        fallback_payload = sanitize_payload({
-            "messages": payload.get("messages", []),
-            "temperature": 0.7,
-            "top_p": 0.4,
-            "max_completion_tokens": 1000,
-        }, fallback)
+        fallback_payload = sanitize_payload(
+            {
+                "messages": payload.get("messages", []),
+                "temperature": 0.7,
+                "top_p": 0.4,
+                "max_completion_tokens": 1000,
+            },
+            fallback,
+        )
         fallback_payload["stream"] = True
-        
+
         f_cfg = PROVIDERS[fallback["provider"]]
         f_headers = {
             "Content-Type": "application/json",
         }
         if f_cfg.get("api_key"):
             f_headers["Authorization"] = f"Bearer {f_cfg['api_key']}"
-            
+
         async with session.post(
-            f_cfg["url"], headers=f_headers, json=fallback_payload,
-            timeout=aiohttp.ClientTimeout(total=60)
+            f_cfg["url"],
+            headers=f_headers,
+            json=fallback_payload,
+            timeout=aiohttp.ClientTimeout(total=60),
         ) as resp:
             resp.raise_for_status()
             async for chunk in consume_stream(resp):

@@ -2,7 +2,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from math import ceil
+
 
 class HelpView(discord.ui.View):
     def __init__(self, embeds):
@@ -35,6 +35,7 @@ class HelpView(discord.ui.View):
     async def page_counter(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
 
+
 class HelpCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -43,16 +44,16 @@ class HelpCommand(commands.Cog):
     async def help(self, interaction: discord.Interaction):
         commands_list = []
         for cmd in self.bot.tree.get_commands():
-            if hasattr(cmd, 'type') and cmd.type.value != 1:
+            if hasattr(cmd, "type") and cmd.type.value != 1:
                 continue
-                
+
             desc = cmd.description or "No description provided."
             commands_list.append(f"``/{cmd.name}`` - {desc}")
 
         commands_list.sort()
 
         per_page = 10
-        chunks = [commands_list[i:i + per_page] for i in range(0, len(commands_list), per_page)]
+        chunks = [commands_list[i : i + per_page] for i in range(0, len(commands_list), per_page)]
 
         if not chunks:
             await interaction.response.send_message("⚠️ No commands found.", ephemeral=True)
@@ -61,20 +62,27 @@ class HelpCommand(commands.Cog):
         embeds = []
         for i, chunk in enumerate(chunks):
             embed = discord.Embed(
-                title="📚 Urch Command List", 
+                title="📚 Urch Command List",
                 description="Here are all available commands:",
-                color=discord.Color.blurple()
+                color=discord.Color.blurple(),
             )
             embed.description += "\n\n" + "\n".join(chunk)
-            embed.set_footer(text=f"Page {i+1}/{len(chunks)} • Total Commands: {len(commands_list)}")
+            embed.set_footer(
+                text=f"Page {i + 1}/{len(chunks)} • Total Commands: {len(commands_list)}"
+            )
             embeds.append(embed)
 
         try:
             view = HelpView(embeds) if len(embeds) > 1 else None
             await interaction.user.send(embed=embeds[0], view=view)
-            await interaction.response.send_message("📬 Sent you a DM with the command list!", ephemeral=True)
+            await interaction.response.send_message(
+                "📬 Sent you a DM with the command list!", ephemeral=True
+            )
         except discord.Forbidden:
-            await interaction.response.send_message("❌ I couldn't DM you. Please check your privacy settings.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ I couldn't DM you. Please check your privacy settings.", ephemeral=True
+            )
+
 
 async def setup(bot):
     await bot.add_cog(HelpCommand(bot))

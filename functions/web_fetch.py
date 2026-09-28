@@ -25,17 +25,25 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+
 def _clean_html_fallback(html: str) -> str:
     """Strips common non-content tags and returns normalized whitespace text."""
     cleaned = re.sub(
         r"<(script|style|svg|footer|header|nav|noscript|aside)[^>]*>.*?</\1>",
         "",
         html,
-        flags=re.DOTALL | re.IGNORECASE
+        flags=re.DOTALL | re.IGNORECASE,
     )
     cleaned = re.sub(r"<[^>]+>", " ", cleaned)
-    cleaned = cleaned.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+    cleaned = (
+        cleaned.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", '"')
+    )
     return " ".join(cleaned.split())
+
 
 async def fetch_webpage(url: str) -> str:
     """
@@ -54,7 +62,13 @@ async def fetch_webpage(url: str) -> str:
                     return f"Error: HTTP {resp.status} when accessing {url}"
 
                 content_type = resp.headers.get("Content-Type", "").lower()
-                allowed_types = ["text/html", "text/plain", "application/xhtml+xml", "application/xml", "application/json"]
+                allowed_types = [
+                    "text/html",
+                    "text/plain",
+                    "application/xhtml+xml",
+                    "application/xml",
+                    "application/json",
+                ]
                 if not any(t in content_type for t in allowed_types):
                     return f"Error: Unsupported Content-Type '{content_type}'. Urch only extracts text/HTML pages."
 
@@ -65,11 +79,7 @@ async def fetch_webpage(url: str) -> str:
         extracted: Optional[str] = None
         if trafilatura is not None:
             extracted = trafilatura.extract(
-                html_text,
-                url=url,
-                include_links=True,
-                include_comments=False,
-                output_format="txt"
+                html_text, url=url, include_links=True, include_comments=False, output_format="txt"
             )
 
         if not extracted:

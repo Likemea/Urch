@@ -23,26 +23,58 @@ MAX_MEMORY_BYTES = 100 * 1024 * 1024
 EXECUTION_TIMEOUT = 6.0
 ALLOWED_EXTENSIONS = (
     # archives, code
-    ".zip", ".tar", ".gz", ".7z",
-    ".py", ".js", ".ts", ".java", ".cpp", ".c", ".cs", ".go", ".rs", ".sh",
-    
+    ".zip",
+    ".tar",
+    ".gz",
+    ".7z",
+    ".py",
+    ".js",
+    ".ts",
+    ".java",
+    ".cpp",
+    ".c",
+    ".cs",
+    ".go",
+    ".rs",
+    ".sh",
     # web, configs
-    ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml",
-    
+    ".html",
+    ".css",
+    ".json",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".toml",
     # docs, data
-    ".txt", ".md", ".log", ".csv", ".xlsx", ".pdf",
-    
+    ".txt",
+    ".md",
+    ".log",
+    ".csv",
+    ".xlsx",
+    ".pdf",
     # media
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
-    ".mp3", ".wav", ".ogg", ".flac", ".m4a",
-    ".mp4", ".webm"
-)              
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".flac",
+    ".m4a",
+    ".mp4",
+    ".webm",
+)
+
 
 def _set_limits():
     """Enforces CPU and memory limits on the sandboxed child process."""
     if resource is not None:
         resource.setrlimit(resource.RLIMIT_AS, (MAX_MEMORY_BYTES, MAX_MEMORY_BYTES))
         resource.setrlimit(resource.RLIMIT_CPU, (5, 6))
+
 
 async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
     """
@@ -79,17 +111,31 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
         "--new-session",
         "--disable-userns",
         "--clearenv",
-        
-        "--ro-bind", "/usr", "/usr",
-        "--ro-bind", "/lib", "/lib",
-        
-        "--setenv", "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "--setenv", "HOME", "/tmp",
-        "--setenv", "PYTHONPATH", "/workspace",
-        "--setenv", "OPENBLAS_NUM_THREADS", "1",
-        "--setenv", "OMP_NUM_THREADS", "1",
-        "--setenv", "MPLCONFIGDIR", "/tmp",
-]
+        "--ro-bind",
+        "/usr",
+        "/usr",
+        "--ro-bind",
+        "/lib",
+        "/lib",
+        "--setenv",
+        "PATH",
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "--setenv",
+        "HOME",
+        "/tmp",
+        "--setenv",
+        "PYTHONPATH",
+        "/workspace",
+        "--setenv",
+        "OPENBLAS_NUM_THREADS",
+        "1",
+        "--setenv",
+        "OMP_NUM_THREADS",
+        "1",
+        "--setenv",
+        "MPLCONFIGDIR",
+        "/tmp",
+    ]
 
     for path in ["/lib64", "/bin", "/etc/alternatives", "/etc/ld.so.cache"]:
         if os.path.exists(path):
@@ -98,14 +144,23 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
     if venv_dir != "/usr" and os.path.exists(venv_dir):
         bwrap_cmd.extend(["--ro-bind", venv_dir, venv_dir])
 
-    bwrap_cmd.extend([
-        "--tmpfs", "/tmp",
-        "--proc", "/proc",
-        "--dev", "/dev",
-        "--bind", scratch_dir, "/workspace",
-        "--chdir", "/workspace",
-        python_bin, "/workspace/script.py"
-    ])
+    bwrap_cmd.extend(
+        [
+            "--tmpfs",
+            "/tmp",
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+            "--bind",
+            scratch_dir,
+            "/workspace",
+            "--chdir",
+            "/workspace",
+            python_bin,
+            "/workspace/script.py",
+        ]
+    )
 
     files = []
     output = ""
@@ -121,11 +176,11 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
             *bwrap_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            preexec_fn=preexec
+            preexec_fn=preexec,
         )
 
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=EXECUTION_TIMEOUT)
-        
+
         raw_out = stdout.decode("utf-8", errors="replace").strip()
         raw_err = stderr.decode("utf-8", errors="replace").strip()
 

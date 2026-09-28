@@ -4,9 +4,9 @@ Phase 2 — Database.
 Exercises the Database class, transaction/lock semantics, and the utils
 currency/roll helpers against an isolated SQLite file.
 """
+
 import asyncio
 import pytest
-import pytest_asyncio
 
 
 # ── 2.1 User lifecycle ────────────────────────────────────────────────────────
@@ -49,9 +49,7 @@ async def test_transaction_rolls_back_on_exception(fresh_db):
 async def test_transaction_commits_on_success(fresh_db):
     await fresh_db.ensure_user("u3")
     async with fresh_db.transaction():
-        await fresh_db.conn.execute(
-            "UPDATE users SET roll_count = 42 WHERE user_id = ?", ("u3",)
-        )
+        await fresh_db.conn.execute("UPDATE users SET roll_count = 42 WHERE user_id = ?", ("u3",))
     data = await fresh_db.get_user_data("u3")
     assert data["roll_count"] == 42
 
@@ -80,6 +78,7 @@ async def test_user_lock_serializes_writes(fresh_db):
 @pytest.mark.asyncio
 async def test_currency_add_remove_roundtrip(fresh_db):
     from utils import currency_add, currency_remove, currency_count
+
     await fresh_db.ensure_user("u5")
 
     await currency_add("u5", "clovers", 10)
@@ -116,8 +115,10 @@ async def test_conversation_history_prunes_per_user(fresh_db):
     """After the bug-2 fix, add_conversation_message must cap history."""
     for i in range(50):
         await fresh_db.add_conversation_message(
-            user_id="u7", guild_id=None,
-            role="user", content=f"msg {i}",
+            user_id="u7",
+            guild_id=None,
+            role="user",
+            content=f"msg {i}",
             max_history=10,
         )
 
@@ -132,8 +133,10 @@ async def test_conversation_history_prunes_per_user(fresh_db):
 async def test_conversation_history_prunes_per_guild(fresh_db):
     for i in range(40):
         await fresh_db.add_conversation_message(
-            user_id=None, guild_id="g1",
-            role="user", content=f"g {i}",
+            user_id=None,
+            guild_id="g1",
+            role="user",
+            content=f"g {i}",
             max_history=8,
         )
     async with fresh_db.conn.execute(
@@ -147,7 +150,10 @@ async def test_conversation_history_prunes_per_guild(fresh_db):
 async def test_get_messages_for_context_is_chronological(fresh_db):
     for i in range(5):
         await fresh_db.add_conversation_message(
-            user_id="u8", guild_id=None, role="user", content=f"m{i}",
+            user_id="u8",
+            guild_id=None,
+            role="user",
+            content=f"m{i}",
         )
     msgs = await fresh_db.get_messages_for_context(user_id="u8", limit=10)
     contents = [m["content"] for m in msgs]
@@ -158,7 +164,10 @@ async def test_get_messages_for_context_is_chronological(fresh_db):
 async def test_clear_conversation_history(fresh_db):
     for i in range(3):
         await fresh_db.add_conversation_message(
-            user_id="u9", guild_id=None, role="user", content=str(i),
+            user_id="u9",
+            guild_id=None,
+            role="user",
+            content=str(i),
         )
     ok = await fresh_db.clear_conversation_history(user_id="u9")
     assert ok is True
@@ -192,15 +201,14 @@ async def test_roll_rarities_high_luck_biases_rarity(fresh_db):
 
     avg_low = sum(order[r] for r in low) / len(low)
     avg_high = sum(order[r] for r in high) / len(high)
-    assert avg_high >= avg_low, (
-        f"Luck inversion: low={avg_low:.2f} high={avg_high:.2f}"
-    )
+    assert avg_high >= avg_low, f"Luck inversion: low={avg_low:.2f} high={avg_high:.2f}"
 
 
 # ── 2.7 Autoroll ──────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_process_autorolls_does_not_crash(fresh_db):
     from utils import process_autorolls
+
     await fresh_db.ensure_user("u12")
     await fresh_db.set_autoroll_status("u12", True)
 

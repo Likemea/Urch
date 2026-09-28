@@ -11,6 +11,7 @@ from functions.web_fetch import fetch_webpage
 from functions.code_interpreter import run_sandboxed_python
 from functions.image_gen import generate_image
 
+
 async def dispatch_tool_call(tool_name: str, arguments_json: str, context: dict) -> Tuple[str, Any]:
     """
     Parses arguments, routes to appropriate function, and returns (result_text, optional_file_object).
@@ -62,7 +63,10 @@ async def dispatch_tool_call(tool_name: str, arguments_json: str, context: dict)
                 )
                 return output_text, discord_file
             else:
-                return f"Error: Failed to generate image using model '{model}' due to an API error.", None
+                return (
+                    f"Error: Failed to generate image using model '{model}' due to an API error.",
+                    None,
+                )
 
         else:
             return f"Error: Unknown tool '{tool_name}'.", None

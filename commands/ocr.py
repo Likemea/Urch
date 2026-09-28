@@ -8,7 +8,8 @@ import io
 import aiohttp
 import asyncio
 
-async def process_ocr_from_url(url: str, interaction: Interaction, loop: asyncio.AbstractEventLoop):    
+
+async def process_ocr_from_url(url: str, interaction: Interaction, loop: asyncio.AbstractEventLoop):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             if resp.status != 200:
@@ -27,9 +28,11 @@ async def process_ocr_from_url(url: str, interaction: Interaction, loop: asyncio
         return
 
     if len(text) > 1900:
-        with io.BytesIO(text.encode('utf-8')) as f:
+        with io.BytesIO(text.encode("utf-8")) as f:
             f.name = "ocr_result.txt"
-            await interaction.followup.send("📄 Text was too long, sent as file:", file=discord.File(f))
+            await interaction.followup.send(
+                "📄 Text was too long, sent as file:", file=discord.File(f)
+            )
     else:
         await interaction.followup.send(f"**📄 Result**\n```\n{text}\n```")
 
@@ -37,11 +40,8 @@ async def process_ocr_from_url(url: str, interaction: Interaction, loop: asyncio
 class OCRCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        
-        self.ctx_menu = app_commands.ContextMenu(
-            name="OCR",
-            callback=self.ocr_context
-        )
+
+        self.ctx_menu = app_commands.ContextMenu(name="OCR", callback=self.ocr_context)
         self.bot.tree.add_command(self.ctx_menu)
 
     async def cog_unload(self):
@@ -50,8 +50,10 @@ class OCRCommand(commands.Cog):
     @app_commands.command(name="ocr", description="Extract text from an image attachment")
     @app_commands.describe(file="Upload an image to extract text from")
     async def ocr_slash(self, interaction: discord.Interaction, file: discord.Attachment):
-        if not file.content_type or not file.content_type.startswith('image'):
-            await interaction.response.send_message("❌ Please upload a valid image file.", ephemeral=True)
+        if not file.content_type or not file.content_type.startswith("image"):
+            await interaction.response.send_message(
+                "❌ Please upload a valid image file.", ephemeral=True
+            )
             return
 
         await interaction.response.defer(thinking=True)
@@ -65,9 +67,9 @@ class OCRCommand(commands.Cog):
         if not message.attachments:
             await interaction.response.send_message("❌ No image attachment found", ephemeral=True)
             return
-            
+
         attachment = message.attachments[0]
-        if not attachment.content_type or not attachment.content_type.startswith('image'):
+        if not attachment.content_type or not attachment.content_type.startswith("image"):
             await interaction.response.send_message("❌ attachment is not an image", ephemeral=True)
             return
 

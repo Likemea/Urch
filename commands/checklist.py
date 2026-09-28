@@ -4,10 +4,11 @@ from discord import app_commands
 from discord.ext import commands
 from math import ceil
 
-from utils import ensure_user, get_checklist_bonus
+from utils import ensure_user
 from raritylist import RARITIES
 
 ITEMS_PER_PAGE = 20
+
 
 class ChecklistView(discord.ui.View):
     def __init__(self, user_id: str, discovered: dict):
@@ -37,17 +38,19 @@ class ChecklistView(discord.ui.View):
             mark = "✅" if had else "❌"
             lines.append(f"{mark} {name}")
         embed.description = "\n".join(lines) if lines else "No rarities defined."
-        
+
         count = sum(1 for v in self.discovered.values() if v)
         bonus_mult = 1.0 + (0.03 * count)
-        
+
         embed.set_footer(text=f"Discovered: {count}/{self.total} • Bonus: x{bonus_mult:.3f} 🍀")
         return embed
 
     @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message("This checklist isn't yours.", ephemeral=True)
+            return await interaction.response.send_message(
+                "This checklist isn't yours.", ephemeral=True
+            )
         max_page = max(0, ceil(self.total / ITEMS_PER_PAGE) - 1)
         self.page = (self.page - 1) % (max_page + 1)
         await interaction.response.edit_message(embed=self.format_page_embed(), view=self)
@@ -55,24 +58,30 @@ class ChecklistView(discord.ui.View):
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message("This checklist isn't yours.", ephemeral=True)
+            return await interaction.response.send_message(
+                "This checklist isn't yours.", ephemeral=True
+            )
         max_page = max(0, ceil(self.total / ITEMS_PER_PAGE) - 1)
         self.page = (self.page + 1) % (max_page + 1)
         await interaction.response.edit_message(embed=self.format_page_embed(), view=self)
+
 
 class ChecklistCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="checklist", description="View how many rarities you've discovered so far")
+    @app_commands.command(
+        name="checklist", description="View how many rarities you've discovered so far"
+    )
     async def checklist(self, interaction: discord.Interaction):
         uid = str(interaction.user.id)
         user = await ensure_user(uid)
         discovered = user.get("discovered", {})
-        
+
         view = ChecklistView(uid, discovered)
         embed = view.format_page_embed()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(ChecklistCommand(bot))

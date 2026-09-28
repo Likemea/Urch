@@ -10,11 +10,12 @@ from providers import MODELS, FALLBACK_MODEL_KEY, call_provider
 
 MAX_STEPS = 5
 
+
 def _format_status_for_tools(tool_names: list[str]) -> str:
     """Creates a user-friendly status update string for active tool calls."""
     if not tool_names:
         return "* 💡 Thinking..."
-    
+
     parts = []
     for name in tool_names:
         if name == "web_search":
@@ -27,8 +28,9 @@ def _format_status_for_tools(tool_names: list[str]) -> str:
             parts.append("🎨 Generating image")
         else:
             parts.append(f"🛠️ Executing {name}")
-            
+
     return "* " + ", ".join(parts) + "..."
+
 
 async def _safe_update_status(status_msg: Optional[discord.Message], text: str):
     """Safely edits the status indicator message if available."""
@@ -38,6 +40,7 @@ async def _safe_update_status(status_msg: Optional[discord.Message], text: str):
         await status_msg.edit(content=text)
     except Exception as e:
         print(f"[Agent] Status message edit failed: {e}")
+
 
 def _flatten_tool_history(messages: list) -> list:
     """Convert tool-call/response messages into plain assistant/user text
@@ -52,10 +55,12 @@ def _flatten_tool_history(messages: list) -> list:
         if role == "tool":
             tool_name = msg.get("name", "tool")
             content = msg.get("content", "")
-            flattened.append({
-                "role": "user",
-                "content": f"[Tool Result for {tool_name}]:\n{content}",
-            })
+            flattened.append(
+                {
+                    "role": "user",
+                    "content": f"[Tool Result for {tool_name}]:\n{content}",
+                }
+            )
 
         elif role == "assistant" and msg.get("tool_calls"):
             content = msg.get("content") or ""
@@ -64,21 +69,25 @@ def _flatten_tool_history(messages: list) -> list:
             else:
                 names = ", ".join(
                     c.get("function", {}).get("name", "tool")
-                    for c in msg["tool_calls"] if isinstance(c, dict)
+                    for c in msg["tool_calls"]
+                    if isinstance(c, dict)
                 )
-                flattened.append({
-                    "role": "assistant",
-                    "content": f"[Invoked tools: {names}]",
-                })
+                flattened.append(
+                    {
+                        "role": "assistant",
+                        "content": f"[Invoked tools: {names}]",
+                    }
+                )
         else:
             flattened.append(msg)
     return flattened
+
 
 async def run_agent_loop(
     chosen_key: str,
     base_messages: list,
     user_params: dict,
-    status_message: Optional[discord.Message] = None
+    status_message: Optional[discord.Message] = None,
 ) -> dict:
     """
     Executes a loop
@@ -146,7 +155,8 @@ async def run_agent_loop(
 
         tool_names = [
             tc.get("function", {}).get("name", "unknown")
-            for tc in tool_calls if isinstance(tc, dict)
+            for tc in tool_calls
+            if isinstance(tc, dict)
         ]
         status_text = _format_status_for_tools(tool_names)
         await _safe_update_status(status_message, status_text)
@@ -163,12 +173,14 @@ async def run_agent_loop(
             print(f"[Agent] Step {step + 1} invoking tool: {fn_name}({fn_args[:100]}...)")
             tool_output, _ = await dispatch_tool_call(fn_name, fn_args, context)
 
-            payload["messages"].append({
-                "role": "tool",
-                "tool_call_id": call_id,
-                "name": fn_name,
-                "content": str(tool_output),
-            })
+            payload["messages"].append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "name": fn_name,
+                    "content": str(tool_output),
+                }
+            )
 
     if not terminated_normally and supports_tools and not final_text:
         await _safe_update_status(status_message, "* 📝 Responding")
@@ -178,7 +190,7 @@ async def run_agent_loop(
         final_payload["messages"] = _flatten_tool_history(list(payload["messages"])) + [
             {
                 "role": "user",
-                "content": "Summarize your findings so far into a final, comprehensive response for the user based on the tool outputs above."
+                "content": "Summarize your findings so far into a final, comprehensive response for the user based on the tool outputs above.",
             }
         ]
         try:
@@ -192,7 +204,9 @@ async def run_agent_loop(
             final_text = f"*(Agent reached maximum steps ({MAX_STEPS}) but encountered an error finalizing response: {e})*"
 
     elapsed = time.perf_counter() - start_time
-    print(f"[Agent] Loop finished in {elapsed:.2f}s using {model_used}. Generated {len(context.get('files', []))} files.")
+    print(
+        f"[Agent] Loop finished in {elapsed:.2f}s using {model_used}. Generated {len(context.get('files', []))} files."
+    )
 
     return {
         "raw_response": final_text,

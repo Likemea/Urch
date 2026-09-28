@@ -5,6 +5,7 @@ Verifies the bot can be imported, that registries are self-consistent, and
 that no module crashes on import. main.py and register_commands.py are
 parsed with `ast` only, since importing them would call `bot.run()`.
 """
+
 import ast
 import os
 import pathlib
@@ -28,17 +29,20 @@ def test_all_files_parse():
 
 
 # ── 1.2 Import core modules ───────────────────────────────────────────────────
-@pytest.mark.parametrize("module_name", [
-    "providers",
-    "recipes",
-    "rate_limiter",
-    "database",
-    "buffs",
-    "utils",
-    "agent",
-    "functions.tools_schema",
-    "functions.dispatcher",
-])
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "providers",
+        "recipes",
+        "rate_limiter",
+        "database",
+        "buffs",
+        "utils",
+        "agent",
+        "functions.tools_schema",
+        "functions.dispatcher",
+    ],
+)
 def test_core_modules_import(module_name):
     """Importing these modules must not raise."""
     __import__(module_name)
@@ -46,8 +50,14 @@ def test_core_modules_import(module_name):
 
 # ── 1.3 Model registry integrity ──────────────────────────────────────────────
 REQUIRED_MODEL_FIELDS = {
-    "id", "disp", "provider", "vision",
-    "reasoning_effort", "tools", "response_format", "routable",
+    "id",
+    "disp",
+    "provider",
+    "vision",
+    "reasoning_effort",
+    "tools",
+    "response_format",
+    "routable",
 }
 
 
@@ -63,6 +73,7 @@ def test_models_have_required_fields():
 
 def test_models_use_known_providers():
     from providers import MODELS, PROVIDERS
+
     for key, entry in MODELS.items():
         assert entry["provider"] in PROVIDERS, (
             f"MODELS['{key}'] uses unknown provider '{entry['provider']}'"
@@ -71,11 +82,10 @@ def test_models_use_known_providers():
 
 def test_routable_models_have_router_info():
     from providers import MODELS
+
     for key, entry in MODELS.items():
         if entry.get("routable"):
-            assert entry.get("router_info"), (
-                f"Routable model '{key}' has no router_info"
-            )
+            assert entry.get("router_info"), f"Routable model '{key}' has no router_info"
 
 
 # ── 1.4 Rate limiter ↔ MODELS consistency ─────────────────────────────────────
@@ -91,9 +101,8 @@ def test_rate_limiter_tier_models_exist_in_models():
             if model_id not in known_ids:
                 unknown.append(f"{tier}: {model_id}")
 
-    assert not unknown, (
-        "Tier entries reference IDs not present in MODELS:\n  "
-        + "\n  ".join(unknown)
+    assert not unknown, "Tier entries reference IDs not present in MODELS:\n  " + "\n  ".join(
+        unknown
     )
 
 
@@ -134,9 +143,7 @@ def test_potion_recipes_well_formed():
         if buff["type"] == "charges":
             assert buff.get("charges", 0) > 0, f"{pid} charge amount must be > 0"
         if buff["type"] == "duration":
-            assert buff.get("duration_seconds", 0) > 0, (
-                f"{pid} duration_seconds must be > 0"
-            )
+            assert buff.get("duration_seconds", 0) > 0, f"{pid} duration_seconds must be > 0"
 
 
 # ── 1.7 Image model registry ──────────────────────────────────────────────────
@@ -152,6 +159,5 @@ def test_image_models_well_formed():
 def test_commands_directory_exists():
     cmds_dir = URCH_ROOT / "commands"
     assert cmds_dir.is_dir(), "commands/ directory is missing"
-    py_files = [f for f in os.listdir(cmds_dir)
-                if f.endswith(".py") and f != "__init__.py"]
+    py_files = [f for f in os.listdir(cmds_dir) if f.endswith(".py") and f != "__init__.py"]
     assert py_files, "No command modules found in commands/"

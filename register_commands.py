@@ -1,17 +1,15 @@
 # Urch/register_commands.py
-import os
 import requests
 import json
-import time
 import config
 
-APPLICATION_ID = '1228418730103541780'
+APPLICATION_ID = "1228418730103541780"
 BOT_TOKEN = config.BOT_TOKEN
 
 url = f"https://discord.com/api/v10/applications/{APPLICATION_ID}/commands"
 
 # 0=GUILD_INSTALL, 1=USER_INSTALL
-INTEGRATION_TYPES = [0, 1] 
+INTEGRATION_TYPES = [0, 1]
 
 # 0=GUILD, 1=BOT_DM, 2=PRIVATE_CHANNEL
 CONTEXTS = [0, 1, 2]
@@ -23,7 +21,7 @@ commands = [
         "type": 1,
         "description": "Toggle background rolling",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "pixel",
@@ -32,26 +30,18 @@ commands = [
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS,
         "options": [
-            {
-                "name": "seed", "description": "Seed for RNG", "type": 4, "required": False
-            },
-            {
-                "name": "size", "description": "Image resolution", "type": 4, "required": False
-            },
-            {
-                "name": "palette", "description": "Color palette", "type": 3, "required": False
-            },
-            {
-                "name": "pattern", "description": "Pattern", "type": 3, "required": False
-            }
-        ]
+            {"name": "seed", "description": "Seed for RNG", "type": 4, "required": False},
+            {"name": "size", "description": "Image resolution", "type": 4, "required": False},
+            {"name": "palette", "description": "Color palette", "type": 3, "required": False},
+            {"name": "pattern", "description": "Pattern", "type": 3, "required": False},
+        ],
     },
     {
         "name": "roll",
         "type": 1,
         "description": "Roll for a rarity",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "sort",
@@ -61,15 +51,15 @@ commands = [
         "contexts": CONTEXTS,
         "options": [
             {
-                "name": "size", 
-                "description": "Size of the array to be sorted", 
-                "type": 4, 
-                "required": True
+                "name": "size",
+                "description": "Size of the array to be sorted",
+                "type": 4,
+                "required": True,
             },
             {
-                "name": "algorithm", 
-                "description": "Sorting algorithm to use", 
-                "type": 3, 
+                "name": "algorithm",
+                "description": "Sorting algorithm to use",
+                "type": 3,
                 "required": False,
                 "choices": [
                     {"name": "Bubble", "value": "bubble"},
@@ -80,10 +70,10 @@ commands = [
                     {"name": "Heap", "value": "heap"},
                     {"name": "Cocktail", "value": "cocktail"},
                     {"name": "Gnome", "value": "gnome"},
-                    {"name": "Shell", "value": "shell"}
-                ]
-            }
-        ]
+                    {"name": "Shell", "value": "shell"},
+                ],
+            },
+        ],
     },
     {
         "name": "filter",
@@ -93,9 +83,9 @@ commands = [
         "contexts": CONTEXTS,
         "options": [
             {
-                "name": "style", 
-                "description": "The style to apply", 
-                "type": 3, 
+                "name": "style",
+                "description": "The style to apply",
+                "type": 3,
                 "required": True,
                 "choices": [
                     {"name": "Blur", "value": "blur"},
@@ -106,16 +96,11 @@ commands = [
                     {"name": "Invert", "value": "invert"},
                     {"name": "Sepia", "value": "sepia"},
                     {"name": "Posterize", "value": "posterize"},
-                    {"name": "Solarize", "value": "solarize"}
-                ]
+                    {"name": "Solarize", "value": "solarize"},
+                ],
             },
-            {
-                "name": "user", 
-                "description": "The user to filter", 
-                "type": 6, 
-                "required": False
-            }
-        ]
+            {"name": "user", "description": "The user to filter", "type": 6, "required": False},
+        ],
     },
     {
         "name": "ask",
@@ -125,7 +110,7 @@ commands = [
         "contexts": CONTEXTS,
         "options": [
             {"name": "prompt", "description": "Your prompt", "type": 3, "required": True},
-        ]
+        ],
     },
     {
         "name": "settings",
@@ -139,40 +124,37 @@ commands = [
                 "description": "View or edit",
                 "type": 3,
                 "required": True,
-                "choices": [
-                    {"name": "View", "value": "view"},
-                    {"name": "Edit", "value": "edit"}
-                ]
+                "choices": [{"name": "View", "value": "view"}, {"name": "Edit", "value": "edit"}],
             }
-        ]
+        ],
     },
     {
         "name": "wipe",
         "type": 1,
         "description": "Clear short-term memory",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "inventory",
         "type": 1,
         "description": "View your current rarities",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "upgrades",
         "type": 1,
         "description": "View upgrades",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "checklist",
         "type": 1,
         "description": "View discovery progress",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "recipes",
@@ -184,31 +166,31 @@ commands = [
             {
                 "name": "view",
                 "description": "Displays all recipes",
-                "type": 1 # SUB_COMMAND
+                "type": 1,  # SUB_COMMAND
             },
             {
                 "name": "craft",
                 "description": "Craft a potion from recipes",
-                "type": 1, # SUB_COMMAND
+                "type": 1,  # SUB_COMMAND
                 "options": [
                     {
                         "name": "recipe_id",
                         "description": "The recipe ID of the potion to craft",
-                        "type": 3, # STRING
+                        "type": 3,  # STRING
                         "required": True,
-                        "autocomplete": True
+                        "autocomplete": True,
                     },
                     {
                         "name": "amount",
                         "description": "The amount of potions to craft (1-1000)",
-                        "type": 4, # INTEGER
+                        "type": 4,  # INTEGER
                         "required": False,
                         "min_value": 1,
-                        "max_value": 1000
-                    }
-                ]
-            }
-        ]
+                        "max_value": 1000,
+                    },
+                ],
+            },
+        ],
     },
     {
         "name": "setluck",
@@ -216,21 +198,21 @@ commands = [
         "description": "Set your effective luck",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS,
-        "options": [{"name": "value", "description": "Luck value", "type": 10, "required": False}]
+        "options": [{"name": "value", "description": "Luck value", "type": 10, "required": False}],
     },
     {
         "name": "debug",
         "type": 1,
         "description": "Recalculate and fix your luck",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "leaderboard",
         "type": 1,
         "description": "View the leaderboard",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "avatar",
@@ -242,10 +224,10 @@ commands = [
             {
                 "name": "user",
                 "description": "The user whose avatar you want",
-                "type": 6, # USER type
-                "required": False
+                "type": 6,  # USER type
+                "required": False,
             }
-        ]
+        ],
     },
     {
         "name": "user",
@@ -257,17 +239,17 @@ commands = [
             {
                 "name": "user",
                 "description": "The user to view",
-                "type": 6, # USER type
-                "required": False
+                "type": 6,  # USER type
+                "required": False,
             }
-        ]
+        ],
     },
     {
         "name": "stats",
         "type": 1,
         "description": "View bot statistics",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "ocr",
@@ -279,10 +261,10 @@ commands = [
             {
                 "name": "file",
                 "description": "Upload an image to extract text from",
-                "type": 11, # ATTACHMENT type
-                "required": True
+                "type": 11,  # ATTACHMENT type
+                "required": True,
             }
-        ]
+        ],
     },
     {
         "name": "analyze",
@@ -294,23 +276,23 @@ commands = [
             {
                 "name": "file",
                 "description": "The image to analyze",
-                "type": 11, # ATTACHMENT type
-                "required": True
+                "type": 11,  # ATTACHMENT type
+                "required": True,
             },
             {
                 "name": "prompt",
                 "description": "Specific question about the image (Optional)",
-                "type": 3, # STRING type
-                "required": False
-            }
-        ]
+                "type": 3,  # STRING type
+                "required": False,
+            },
+        ],
     },
     {
         "name": "help",
         "type": 1,
         "description": "Get a list of available commands",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "txt2img",
@@ -323,7 +305,7 @@ commands = [
                 "name": "prompt",
                 "description": "Description of the image you want to generate",
                 "type": 3,
-                "required": True
+                "required": True,
             },
             {
                 "name": "model",
@@ -338,32 +320,32 @@ commands = [
                     {"name": "Wan 2.7 Image", "value": "wan-image"},
                     {"name": "Qwen Image Plus", "value": "qwen-image"},
                     {"name": "FLUX.2 Klein 4B", "value": "klein"},
-                    {"name": "FLUX.1 Kontext", "value": "kontext"}
-                ]
+                    {"name": "FLUX.1 Kontext", "value": "kontext"},
+                ],
             },
             {
                 "name": "width",
                 "description": "Width of the image (128-768)",
                 "type": 4,
-                "required": False
+                "required": False,
             },
             {
                 "name": "height",
                 "description": "Height of the image (128-768)",
                 "type": 4,
-                "required": False
+                "required": False,
             },
             {
                 "name": "seed",
                 "description": "Seed for reproducible results (-1 for random)",
                 "type": 4,
-                "required": False
+                "required": False,
             },
             {
                 "name": "enhance",
                 "description": "Urch prompt enhancement",
                 "type": 5,
-                "required": False
+                "required": False,
             },
             {
                 "name": "quality",
@@ -373,10 +355,10 @@ commands = [
                 "choices": [
                     {"name": "Low", "value": "low"},
                     {"name": "Medium", "value": "medium"},
-                    {"name": "High", "value": "high"}
-                ]
-            }
-        ]
+                    {"name": "High", "value": "high"},
+                ],
+            },
+        ],
     },
     {
         "name": "glitch",
@@ -388,35 +370,35 @@ commands = [
             {
                 "name": "image",
                 "description": "The image or GIF to glitch",
-                "type": 11, # ATTACHMENT type
-                "required": True
+                "type": 11,  # ATTACHMENT type
+                "required": True,
             },
             {
                 "name": "intensity",
                 "description": "How glitchy it should be (1-10)",
-                "type": 4, # INTEGER type
-                "required": False
-            }
-        ]
+                "type": 4,  # INTEGER type
+                "required": False,
+            },
+        ],
     },
     {
         "name": "OCR",
         "type": 3,  # 3 = MESSAGE CONTEXT MENU
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "Analyze Image",
         "type": 3,  # 3 = MESSAGE CONTEXT MENU
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "safety",
         "type": 1,
         "description": "🔒 Owner control panel",
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "transcribe",
@@ -428,16 +410,16 @@ commands = [
             {
                 "name": "file",
                 "description": "Upload an audio file to transcribe (.mp3, .wav, .m4a, .ogg, etc.)",
-                "type": 11, # ATTACHMENT type
-                "required": True
+                "type": 11,  # ATTACHMENT type
+                "required": True,
             }
-        ]
+        ],
     },
     {
         "name": "Transcribe",
         "type": 3,  # 3 = MESSAGE CONTEXT MENU
         "integration_types": INTEGRATION_TYPES,
-        "contexts": CONTEXTS
+        "contexts": CONTEXTS,
     },
     {
         "name": "diagnose",
@@ -449,17 +431,14 @@ commands = [
             {
                 "name": "duration",
                 "description": "Duration of diagnostics in seconds (1-60)",
-                "type": 4, # INTEGER
-                "required": False
+                "type": 4,  # INTEGER
+                "required": False,
             }
-        ]
-    }
+        ],
+    },
 ]
 
-headers = {
-    "Authorization": f"Bot {BOT_TOKEN}",
-    "Content-Type": "application/json"
-}
+headers = {"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"}
 
 print(f"⏳ Updating ({len(commands)}) commands.")
 

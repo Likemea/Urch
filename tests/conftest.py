@@ -32,6 +32,7 @@ async def fresh_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db_module, "db", test_db, raising=False)
     try:
         import utils as utils_module
+
         monkeypatch.setattr(utils_module, "db", test_db, raising=False)
     except ImportError:
         pass

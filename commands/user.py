@@ -15,6 +15,7 @@ BADGE_MAPPING = {
     "bot_http_interactions": "🌐 HTTP Bot",
 }
 
+
 class UserInfoCommand(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -41,7 +42,9 @@ class UserInfoCommand(commands.Cog):
 
         embed = discord.Embed(color=embed_color)
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.set_author(name=f"{target.display_name} (@{target.name})", icon_url=target.display_avatar.url)
+        embed.set_author(
+            name=f"{target.display_name} (@{target.name})", icon_url=target.display_avatar.url
+        )
 
         embed.add_field(name="ID", value=f"`{target.id}`", inline=True)
         embed.add_field(name="Type", value="🤖" if target.bot else "👤", inline=True)
@@ -57,10 +60,9 @@ class UserInfoCommand(commands.Cog):
         if isinstance(target, discord.Member):
             if target.joined_at:
                 joined_dt = f"{discord.utils.format_dt(target.joined_at, style='D')} ({discord.utils.format_dt(target.joined_at, style='R')})"
-                
+
                 sorted_members = sorted(
-                    [m for m in interaction.guild.members if m.joined_at],
-                    key=lambda m: m.joined_at
+                    [m for m in interaction.guild.members if m.joined_at], key=lambda m: m.joined_at
                 )
                 if target in sorted_members:
                     join_pos = sorted_members.index(target) + 1
@@ -70,7 +72,9 @@ class UserInfoCommand(commands.Cog):
 
             if target.premium_since:
                 boost_dt = discord.utils.format_dt(target.premium_since, style="R")
-                embed.add_field(name="Server Booster", value=f"Boosting since {boost_dt} 🚀", inline=True)
+                embed.add_field(
+                    name="Server Booster", value=f"Boosting since {boost_dt} 🚀", inline=True
+                )
 
             status_flags = []
             if target.id == interaction.guild.owner_id:
@@ -104,6 +108,7 @@ class UserInfoCommand(commands.Cog):
         embed.set_footer(text=f"{interaction.user}", icon_url=interaction.user.display_avatar.url)
 
         await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(UserInfoCommand(bot))

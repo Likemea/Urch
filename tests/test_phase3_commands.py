@@ -4,6 +4,7 @@ Phase 3 — Commandry.
 Loads every command module into a fresh commands.Bot and verifies that
 setup(bot) succeeds and that no two modules declare the same command name.
 """
+
 import os
 import pathlib
 import pytest

@@ -9,7 +9,9 @@ from buffs import get_user_potion_summary
 
 
 class InventoryView(discord.ui.View):
-    def __init__(self, user_id: str, items: list[tuple[str, int]], potion_summary: list[str] = None):
+    def __init__(
+        self, user_id: str, items: list[tuple[str, int]], potion_summary: list[str] = None
+    ):
         super().__init__(timeout=120)
         self.user_id = str(user_id)
         self.items = items
@@ -24,13 +26,12 @@ class InventoryView(discord.ui.View):
         page_items = self.items[start:end]
 
         embed = discord.Embed(
-            title=f"🎒 Inventory (Page {self.page+1}/{self.total_pages})",
-            color=discord.Color.blurple()
+            title=f"🎒 Inventory (Page {self.page + 1}/{self.total_pages})",
+            color=discord.Color.blurple(),
         )
         if page_items:
             lines = [
-                f"{rarity} (x{count})" if count > 1 else rarity
-                for rarity, count in page_items
+                f"{rarity} (x{count})" if count > 1 else rarity for rarity, count in page_items
             ]
             embed.description = "\n".join(lines)
         else:
@@ -59,7 +60,9 @@ class InventoryView(discord.ui.View):
     @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message("This inventory isn’t yours.", ephemeral=True)
+            return await interaction.response.send_message(
+                "This inventory isn’t yours.", ephemeral=True
+            )
         self.page = (self.page - 1) % self.total_pages
         self.update_buttons()
         await interaction.response.edit_message(embed=self.format_page(), view=self)
@@ -67,7 +70,9 @@ class InventoryView(discord.ui.View):
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message("This inventory isn’t yours.", ephemeral=True)
+            return await interaction.response.send_message(
+                "This inventory isn’t yours.", ephemeral=True
+            )
         self.page = (self.page + 1) % self.total_pages
         self.update_buttons()
         await interaction.response.edit_message(embed=self.format_page(), view=self)

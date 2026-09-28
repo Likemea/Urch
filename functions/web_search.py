@@ -7,16 +7,20 @@ Returns structured titles, URLs, and snippets.
 import asyncio
 from ddgs import DDGS
 
+
 def _ddgs_search_sync(query: str, max_results: int = 3) -> list[dict]:
     results = []
     with DDGS() as ddgs:
         for r in ddgs.text(query, max_results=max_results):
-            results.append({
-                "title": r.get("title", "No Title"),
-                "url": r.get("href", ""),
-                "snippet": r.get("body", "")
-            })
+            results.append(
+                {
+                    "title": r.get("title", "No Title"),
+                    "url": r.get("href", ""),
+                    "snippet": r.get("body", ""),
+                }
+            )
     return results
+
 
 async def web_search(query: str, max_results: int = 3) -> str:
     """
@@ -37,9 +41,7 @@ async def web_search(query: str, max_results: int = 3) -> str:
             title = item.get("title", "No title")
             url = item.get("url", "")
             snippet = item.get("snippet", "").strip()
-            formatted_entries.append(
-                f"[{i}] {title}\nURL: {url}\nSnippet: {snippet}"
-            )
+            formatted_entries.append(f"[{i}] {title}\nURL: {url}\nSnippet: {snippet}")
 
         return "\n\n".join(formatted_entries)
     except Exception as e:

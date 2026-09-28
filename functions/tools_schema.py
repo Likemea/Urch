@@ -15,17 +15,17 @@ AGENT_TOOLS = [
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The search query to look up on the web."
+                        "description": "The search query to look up on the web.",
                     },
                     "max_results": {
                         "type": "integer",
                         "description": "Maximum number of search results to return (default: 3, max: 10).",
-                        "default": 3
-                    }
+                        "default": 3,
+                    },
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
     {
         "type": "function",
@@ -37,12 +37,12 @@ AGENT_TOOLS = [
                 "properties": {
                     "url": {
                         "type": "string",
-                        "description": "The target webpage URL (must start with http:// or https://)."
+                        "description": "The target webpage URL (must start with http:// or https://).",
                     }
                 },
-                "required": ["url"]
-            }
-        }
+                "required": ["url"],
+            },
+        },
     },
     {
         "type": "function",
@@ -54,12 +54,12 @@ AGENT_TOOLS = [
                 "properties": {
                     "code": {
                         "type": "string",
-                        "description": "The complete, self-contained Python 3 script to execute."
+                        "description": "The complete, self-contained Python 3 script to execute.",
                     }
                 },
-                "required": ["code"]
-            }
-        }
+                "required": ["code"],
+            },
+        },
     },
     {
         "type": "function",
@@ -71,16 +71,16 @@ AGENT_TOOLS = [
                 "properties": {
                     "prompt": {
                         "type": "string",
-                        "description": "A detailed text prompt describing the image to generate."
+                        "description": "A detailed text prompt describing the image to generate.",
                     },
                     "model": {
                         "type": "string",
                         "description": "Image model to use. Options: 'dreamshaper', 'flux'. Defaults to 'dreamshaper'.",
-                        "default": "dreamshaper"
-                    }
+                        "default": "dreamshaper",
+                    },
                 },
-                "required": ["prompt"]
-            }
-        }
-    }
+                "required": ["prompt"],
+            },
+        },
+    },
 ]

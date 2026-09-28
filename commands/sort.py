@@ -5,11 +5,13 @@ import asyncio
 
 import discord
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from discord import app_commands
 from discord.ext import commands
 from PIL import Image
+
 
 class SortCommand(commands.Cog):
     def __init__(self, bot):
@@ -17,30 +19,31 @@ class SortCommand(commands.Cog):
 
     @app_commands.command(name="sort", description="Visualize a sorting algorithm")
     @app_commands.describe(
-        size="Size of the array to be sorted",
-        algorithm="Sorting algorithm to use"
+        size="Size of the array to be sorted", algorithm="Sorting algorithm to use"
     )
-    @app_commands.choices(algorithm=[
-        app_commands.Choice(name="Bubble", value="bubble"),
-        app_commands.Choice(name="Selection", value="selection"),
-        app_commands.Choice(name="Insertion", value="insertion"),
-        app_commands.Choice(name="Merge", value="merge"),
-        app_commands.Choice(name="Quick", value="quick"),
-        app_commands.Choice(name="Heap", value="heap"),
-        app_commands.Choice(name="Cocktail", value="cocktail"),
-        app_commands.Choice(name="Gnome", value="gnome"),
-        app_commands.Choice(name="Shell", value="shell"),
-    ])
-    async def sort(self, interaction: discord.Interaction, 
-                   size: int, 
-                   algorithm: str = "bubble"):
-        
+    @app_commands.choices(
+        algorithm=[
+            app_commands.Choice(name="Bubble", value="bubble"),
+            app_commands.Choice(name="Selection", value="selection"),
+            app_commands.Choice(name="Insertion", value="insertion"),
+            app_commands.Choice(name="Merge", value="merge"),
+            app_commands.Choice(name="Quick", value="quick"),
+            app_commands.Choice(name="Heap", value="heap"),
+            app_commands.Choice(name="Cocktail", value="cocktail"),
+            app_commands.Choice(name="Gnome", value="gnome"),
+            app_commands.Choice(name="Shell", value="shell"),
+        ]
+    )
+    async def sort(self, interaction: discord.Interaction, size: int, algorithm: str = "bubble"):
+
         if size < 2 or size > 15:
-            await interaction.response.send_message("Size must be between 2 and 15.", ephemeral=True)
+            await interaction.response.send_message(
+                "Size must be between 2 and 15.", ephemeral=True
+            )
             return
-        
+
         await interaction.response.defer(thinking=True)
-        
+
         sort_functions = {
             "bubble": self.visualize_bubble_sort,
             "selection": self.visualize_selection_sort,
@@ -50,9 +53,9 @@ class SortCommand(commands.Cog):
             "heap": self.visualize_heap_sort,
             "cocktail": self.visualize_cocktail_sort,
             "gnome": self.visualize_gnome_sort,
-            "shell": self.visualize_shell_sort
+            "shell": self.visualize_shell_sort,
         }
-        
+
         if algorithm not in sort_functions:
             await interaction.followup.send(f"Unknown algorithm: {algorithm}.", ephemeral=True)
             return
@@ -60,18 +63,16 @@ class SortCommand(commands.Cog):
         loop = asyncio.get_running_loop()
         try:
             image_binary = await loop.run_in_executor(
-                None, 
-                self._run_blocking_sort_generation, 
-                sort_functions[algorithm], 
-                size, 
-                algorithm
+                None, self._run_blocking_sort_generation, sort_functions[algorithm], size, algorithm
             )
-            
+
             if image_binary:
-                await interaction.followup.send(file=discord.File(fp=image_binary, filename=f'{algorithm}_sort.gif'))
+                await interaction.followup.send(
+                    file=discord.File(fp=image_binary, filename=f"{algorithm}_sort.gif")
+                )
             else:
                 await interaction.followup.send("Failed to generate GIF.")
-                
+
         except Exception as e:
             print(f"Error in sort command: {e}")
             await interaction.followup.send(f"An error occurred: {e}")
@@ -87,12 +88,12 @@ class SortCommand(commands.Cog):
 
             image_binary = io.BytesIO()
             images[0].save(
-                image_binary, 
-                format='GIF', 
-                append_images=images[1:], 
-                save_all=True, 
-                duration=500, 
-                loop=0
+                image_binary,
+                format="GIF",
+                append_images=images[1:],
+                save_all=True,
+                duration=500,
+                loop=0,
             )
             image_binary.seek(0)
             return image_binary
@@ -100,34 +101,33 @@ class SortCommand(commands.Cog):
             print(f"Blocking sort generation error: {e}")
             return None
 
-
     def create_image(self, array, algorithm_name):
         fig, ax = plt.subplots(figsize=(8, 6))
-        ax.bar(range(len(array)), array, color='skyblue', edgecolor='black')
-        ax.set_xlabel('Index')
-        ax.set_ylabel('Value')
-        ax.set_title(f'{algorithm_name} Visualization')
-        ax.grid(axis='y', linestyle='--', alpha=0.7)
-        
+        ax.bar(range(len(array)), array, color="skyblue", edgecolor="black")
+        ax.set_xlabel("Index")
+        ax.set_ylabel("Value")
+        ax.set_title(f"{algorithm_name} Visualization")
+        ax.grid(axis="y", linestyle="--", alpha=0.7)
+
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
+        plt.savefig(buf, format="png", bbox_inches="tight")
         plt.close(fig)
         buf.seek(0)
-        
+
         image = Image.open(buf)
-        image.load() 
-        
-        buf.close() 
-        
+        image.load()
+
+        buf.close()
+
         return image
 
     def visualize_bubble_sort(self, array):
         images = []
         n = len(array)
         for i in range(n):
-            for j in range(0, n-i-1):
-                if array[j] > array[j+1]:
-                    array[j], array[j+1] = array[j+1], array[j]
+            for j in range(0, n - i - 1):
+                if array[j] > array[j + 1]:
+                    array[j], array[j + 1] = array[j + 1], array[j]
                 images.append(self.create_image(array, "Bubble Sort"))
         return images
 
@@ -136,7 +136,7 @@ class SortCommand(commands.Cog):
         n = len(array)
         for i in range(n):
             min_idx = i
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 if array[j] < array[min_idx]:
                     min_idx = j
             array[i], array[min_idx] = array[min_idx], array[i]
@@ -168,8 +168,8 @@ class SortCommand(commands.Cog):
             self.merge(array, left, mid, right, images)
 
     def merge(self, array, left, mid, right, images):
-        left_arr = array[left:mid+1]
-        right_arr = array[mid+1:right+1]
+        left_arr = array[left : mid + 1]
+        right_arr = array[mid + 1 : right + 1]
 
         i = j = 0
         k = left
@@ -216,7 +216,7 @@ class SortCommand(commands.Cog):
                 i += 1
                 array[i], array[j] = array[j], array[i]
                 images.append(self.create_image(array, "Quick Sort"))
-        
+
         array[i + 1], array[high] = array[high], array[i + 1]
         images.append(self.create_image(array, "Quick Sort"))
         return i + 1
@@ -232,7 +232,7 @@ class SortCommand(commands.Cog):
             array[0], array[i] = array[i], array[0]
             images.append(self.create_image(array, "Heap Sort"))
             self.heapify(array, i, 0, images)
-        
+
         return images
 
     def heapify(self, array, n, i, images):
@@ -260,34 +260,34 @@ class SortCommand(commands.Cog):
 
         while swapped:
             swapped = False
-            
+
             for i in range(start, end):
                 if array[i] > array[i + 1]:
                     array[i], array[i + 1] = array[i + 1], array[i]
                     swapped = True
                     images.append(self.create_image(array, "Cocktail Sort"))
-            
+
             if not swapped:
                 break
-                
+
             end -= 1
             swapped = False
-            
+
             for i in range(end - 1, start - 1, -1):
                 if array[i] > array[i + 1]:
                     array[i], array[i + 1] = array[i + 1], array[i]
                     swapped = True
                     images.append(self.create_image(array, "Cocktail Sort"))
-            
+
             start += 1
-        
+
         return images
 
     def visualize_gnome_sort(self, array):
         images = []
         index = 0
         n = len(array)
-        
+
         while index < n:
             if index == 0:
                 index += 1
@@ -297,7 +297,7 @@ class SortCommand(commands.Cog):
                 array[index], array[index - 1] = array[index - 1], array[index]
                 images.append(self.create_image(array, "Gnome Sort"))
                 index -= 1
-        
+
         return images
 
     def visualize_shell_sort(self, array):
@@ -313,13 +313,14 @@ class SortCommand(commands.Cog):
                     array[j] = array[j - gap]
                     j -= gap
                     images.append(self.create_image(array, "Shell Sort"))
-                
+
                 array[j] = temp
                 if j != i:
                     images.append(self.create_image(array, "Shell Sort"))
             gap //= 2
-        
+
         return images
+
 
 async def setup(bot):
     await bot.add_cog(SortCommand(bot))
