@@ -109,7 +109,9 @@ async def build_contextual_system_message(user: discord.User, channel, guild=Non
 async def load_extensions():
     for filename in os.listdir("./commands"):
         if filename.endswith(".py") and filename != "__init__.py":
-            await bot.load_extension(f"commands.{filename[:-3]}")
+            ext = f"commands.{filename[:-3]}"
+            if ext not in bot.extensions:
+                await bot.load_extension(ext)
 
 
 @bot.event
@@ -517,18 +519,6 @@ async def on_message(message):
         return
 
     if bot.user in message.mentions or isinstance(message.channel, discord.DMChannel):
-        # ── Rate Limit Check ──
-        try:
-            rl = getattr(bot, "rate_limiter", None)
-            if rl:
-                allowed, wait_time, reason = rl.check(str(message.author.id))
-                if not allowed:
-                    await message.channel.send(
-                        f"⏳ Slow down! {reason} Try again in {wait_time:.1f}s.", delete_after=8
-                    )
-                    return
-        except Exception as e:
-            print(f"Rate limiter error: {e}")
         async with message.channel.typing():
             try:
                 has_image = (
@@ -867,6 +857,8 @@ async def on_raw_reaction_add(payload):
 # HELPERS
 # ───────────────────────────────
 def split_message(message, limit=2000):
+    if not message:
+        return ["*(Empty response)*"]
     if len(message) <= limit:
         return [message]
     chunks = []

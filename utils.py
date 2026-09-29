@@ -588,19 +588,19 @@ async def append_message_for_context(
 
 
 async def update_message_in_history(user_id, is_dm, guild_id, message_id, new_content):
-    return await db.update_message_in_history(user_id, guild_id, message_id, new_content)
+    return await db.update_message_in_history(user_id, is_dm, guild_id, message_id, new_content)
 
 
 async def delete_message_from_history(user_id, is_dm, guild_id, message_id):
-    return await db.delete_message_from_history(user_id, guild_id, message_id)
+    return await db.delete_message_from_history(user_id, is_dm, guild_id, message_id)
 
 
 async def check_reaction_permission(user_id, is_dm, guild_id, bot_msg_id, reactor_id):
-    return await db.check_reaction_permission(user_id, guild_id, bot_msg_id, reactor_id)
+    return await db.check_reaction_permission(user_id, is_dm, guild_id, bot_msg_id, reactor_id)
 
 
 async def get_context_for_message(user_id, is_dm, guild_id, message_id):
-    return await db.get_context_for_message(user_id, guild_id, message_id)
+    return await db.get_context_for_message(user_id, is_dm, guild_id, message_id)
 
 
 def format_number(num: float) -> str:

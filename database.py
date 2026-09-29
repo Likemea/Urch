@@ -23,6 +23,8 @@ class Database:
     async def initialize(self):
         """Initialize database and create tables"""
         self.conn = await aiosqlite.connect(self.db_path)
+        if self.conn:
+            return
         async with self.conn.execute("PRAGMA journal_mode=WAL"):
             pass
         async with self.conn.execute("PRAGMA synchronous=NORMAL"):
@@ -837,13 +839,17 @@ class Database:
                 msgs.append(m)
             return msgs
 
-    async def update_message_in_history(self, user_id, guild_id, message_id, new_content):
+    async def update_message_in_history(self, user_id, is_dm, guild_id, message_id, new_content):
         await self._check_conn()
+        if is_dm:
+            sql = "SELECT id, message_ids FROM conversation_history WHERE user_id=? AND guild_id IS NULL ORDER BY id DESC LIMIT 50"
+            params = (user_id,)
+        else:
+            sql = "SELECT id, message_ids FROM conversation_history WHERE guild_id=? AND user_id IS NULL ORDER BY id DESC LIMIT 50"
+            params = (guild_id,)
+
         async with self._lock:
-            async with self.conn.execute(
-                "SELECT id, message_ids FROM conversation_history WHERE user_id=? OR guild_id=? ORDER BY id DESC LIMIT 50",
-                (user_id, guild_id),
-            ) as cur:
+            async with self.conn.execute(sql, params) as cur:
                 async for row in cur:
                     ids = json.loads(row["message_ids"] or "[]")
                     if message_id in ids:
@@ -855,13 +861,16 @@ class Database:
                             return True
         return False
 
-    async def delete_message_from_history(self, user_id, guild_id, message_id):
+    async def delete_message_from_history(self, user_id, is_dm, guild_id, message_id):
         await self._check_conn()
+        if is_dm:
+            sql = "SELECT id, message_ids FROM conversation_history WHERE user_id=? AND guild_id IS NULL ORDER BY id DESC LIMIT 50"
+            params = (user_id,)
+        else:
+            sql = "SELECT id, message_ids FROM conversation_history WHERE guild_id=? AND user_id IS NULL ORDER BY id DESC LIMIT 50"
+            params = (guild_id,)
         async with self._lock:
-            async with self.conn.execute(
-                "SELECT id, message_ids FROM conversation_history WHERE user_id=? OR guild_id=? ORDER BY id DESC LIMIT 50",
-                (user_id, guild_id),
-            ) as cur:
+            async with self.conn.execute(sql, params) as cur:
                 async for row in cur:
                     ids = json.loads(row["message_ids"] or "[]")
                     if message_id in ids:
@@ -934,31 +943,43 @@ class Database:
                 logger.error(f"Error clearing conversation history: {e}")
                 return False
 
-    async def check_reaction_permission(self, user_id, guild_id, bot_message_id, reactor_id):
+    async def check_reaction_permission(self, user_id, is_dm, guild_id, bot_message_id, reactor_id):
         await self._check_conn()
-        async with self.conn.execute(
-            "SELECT id, message_ids FROM conversation_history WHERE (user_id=? OR guild_id=?) AND role='assistant' ORDER BY id DESC LIMIT 20",
-            (user_id, guild_id),
-        ) as cur:
+        if is_dm:
+            sql1 = "SELECT id, message_ids FROM conversation_history WHERE user_id=? AND guild_id IS NULL AND role='assistant' ORDER BY id DESC LIMIT 20"
+            params1 = (user_id,)
+            sql2 = "SELECT author_id FROM conversation_history WHERE id < ? AND user_id=? AND guild_id IS NULL ORDER BY id DESC LIMIT 1"
+            params2 = lambda row_id: (row_id, user_id)
+        else:
+            sql1 = "SELECT id, message_ids FROM conversation_history WHERE guild_id=? AND user_id IS NULL AND role='assistant' ORDER BY id DESC LIMIT 20"
+            params1 = (guild_id,)
+            sql2 = "SELECT author_id FROM conversation_history WHERE id < ? AND guild_id=? AND user_id IS NULL ORDER BY id DESC LIMIT 1"
+            params2 = lambda row_id: (row_id, guild_id)
+
+        async with self.conn.execute(sql1, params1) as cur:
             async for row in cur:
                 ids = json.loads(row["message_ids"] or "[]")
                 if bot_message_id in ids:
-                    async with self.conn.execute(
-                        "SELECT author_id FROM conversation_history WHERE id < ? AND (user_id=? OR guild_id=?) ORDER BY id DESC LIMIT 1",
-                        (row["id"], user_id, guild_id),
-                    ) as prev_cur:
+                    async with self.conn.execute(sql2, params2(row["id"])) as prev_cur:
                         prev = await prev_cur.fetchone()
                         if prev and prev["author_id"] == str(reactor_id):
                             return True
         return False
 
-    async def get_context_for_message(self, user_id, guild_id, message_id):
+    async def get_context_for_message(self, user_id, is_dm, guild_id, message_id):
         await self._check_conn()
         target_row = None
-        async with self.conn.execute(
-            "SELECT id, message_ids FROM conversation_history WHERE (user_id=? OR guild_id=?) AND role='assistant' ORDER BY id DESC LIMIT 20",
-            (user_id, guild_id),
-        ) as cur:
+        if is_dm:
+            sql1 = "SELECT id, message_ids FROM conversation_history WHERE user_id=? AND guild_id IS NULL AND role='assistant' ORDER BY id DESC LIMIT 20"
+            params1 = (user_id,)
+            sql2 = "SELECT role, content FROM conversation_history WHERE id < ? AND user_id=? AND guild_id IS NULL ORDER BY id DESC LIMIT 10"
+            params2 = lambda target_id: (target_id, user_id)
+        else:
+            sql1 = "SELECT id, message_ids FROM conversation_history WHERE guild_id=? AND user_id IS NULL AND role='assistant' ORDER BY id DESC LIMIT 20"
+            params1 = (guild_id,)
+            sql2 = "SELECT role, content FROM conversation_history WHERE id < ? AND guild_id=? AND user_id IS NULL ORDER BY id DESC LIMIT 10"
+            params2 = lambda target_id: (target_id, guild_id)
+        async with self.conn.execute(sql1, params1) as cur:
             async for row in cur:
                 ids = json.loads(row["message_ids"] or "[]")
                 if message_id in ids:
@@ -968,10 +989,7 @@ class Database:
         if not target_row:
             return None, None
 
-        async with self.conn.execute(
-            "SELECT role, content FROM conversation_history WHERE id < ? AND (user_id=? OR guild_id=?) ORDER BY id DESC LIMIT 10",
-            (target_row["id"], user_id, guild_id),
-        ) as cur:
+        async with self.conn.execute(sql2, params2(target_row["id"])) as cur:
             rows = await cur.fetchall()
 
         if not rows:
