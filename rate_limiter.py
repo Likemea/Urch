@@ -25,7 +25,7 @@ DEFAULT_TIER_LIMITS = {
             "community/AkshayCoder48/step-3.7-flash",
             "YoannDev90/poolside-laguna-s-2.1:free",
             "openai",
-            "nova-fast",
+            "community/voodoohop/airforce-grok-4-fast",
             "nemotron-3.5-lightning",
             "gemma-4-26b-a4b-it",
             "gemma-4-31b-it",
@@ -39,13 +39,13 @@ DEFAULT_TIER_LIMITS = {
             "openai/gpt-oss-20b",
             "deepseek/deepseek-v4.1-flash",
             "qwen/qwen3.8-27b",
-            "gpt-5.6-luna",
+            "gpt-6-luna",
             "z-ai/glm-5.3-flash",
         ],
         "rps": 0.25,
         "rpm": 4,
     },
-    "heavy": {"models": ["openai/gpt-oss-120b", "minimax"], "rps": 0.125, "rpm": 2},
+    "heavy": {"models": ["openai/gpt-oss-120b", "gemini-3.8-flash"], "rps": 0.125, "rpm": 2},
 }
 
 

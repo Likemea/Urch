@@ -54,6 +54,7 @@ async def generate_image(
                 ext = "jpg" if "jpeg" in content_type else "png"
 
                 return discord.File(fp=image_binary, filename=f"gen_{int(time.time())}.{ext}")
+                print(f"[ImageGen] {prompt}")
             else:
-                print(f"[ImageGen] Failed with status {response.status}")
+                print(f"[ImageGen] Failed with {response.status}")
                 return None

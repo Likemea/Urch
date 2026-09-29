@@ -315,12 +315,7 @@ commands = [
                 "choices": [
                     {"name": "Flux Schnell", "value": "flux"},
                     {"name": "Z-Image Turbo", "value": "zimage"},
-                    {"name": "GPT Image 1 Mini", "value": "gptimage"},
-                    {"name": "GPT Image 1.5", "value": "gptimage-large"},
-                    {"name": "Wan 2.7 Image", "value": "wan-image"},
-                    {"name": "Qwen Image Plus", "value": "qwen-image"},
-                    {"name": "FLUX.2 Klein 4B", "value": "klein"},
-                    {"name": "FLUX.1 Kontext", "value": "kontext"},
+                    {"name": "DreamShaper", "value": "dreamshaper"},
                 ],
             },
             {

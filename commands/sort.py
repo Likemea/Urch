@@ -36,9 +36,9 @@ class SortCommand(commands.Cog):
     )
     async def sort(self, interaction: discord.Interaction, size: int, algorithm: str = "bubble"):
 
-        if size < 2 or size > 15:
+        if size < 2 or size > 10:
             await interaction.response.send_message(
-                "Size must be between 2 and 15.", ephemeral=True
+                "Size must be between 2 and 10.", ephemeral=True
             )
             return
 
