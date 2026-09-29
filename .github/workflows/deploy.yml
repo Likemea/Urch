@@ -3,7 +3,7 @@ name: Lint, Test, and Deploy Urch
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # manual re-deploy from the Actions tab
+  workflow_dispatch:
 
 concurrency:
   group: deploy-prod
@@ -35,6 +35,7 @@ jobs:
 
       - name: Tests (phase 1 only)
         env:
+          PYTHONPATH: .
           BOT_TOKEN: "dummy_token_for_ci_testing_only"
           GROQ_API_KEY: "dummy_key"
           POLLINATIONS_API_KEY: "dummy_key"
@@ -62,20 +63,19 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
             export PATH="$HOME/.npm-global/bin:/usr/local/bin:$PATH"
 
-            set -Eeuo pipefail   # -E so the ERR trap also fires inside functions
+            set -Eeuo pipefail
 
             APP_NAME="Urch"
             APP_DIR="/home/Dani/Urch"
             VENV_PY="/home/Dani/.venv/bin/python"
             VENV_PIP="/home/Dani/.venv/bin/pip"
-            TARGET_SHA="${{ github.sha }}"   # deploy the commit that passed CI, not whatever main is now
-            STABLE_SECS=25                   # how long the bot must stay up without restarting
+            TARGET_SHA="${{ github.sha }}"   # commit that passed CI
+            STABLE_SECS=25
 
             command -v pm2 >/dev/null || { echo "::error::pm2 not found in PATH"; exit 1; }
 
             # Prints "<status> <restart_count> <uptime_s>", or "missing 0 0" / "unknown 0 0".
-            # Parsed with the venv's Python (no jq needed on the VM) and tolerant of
-            # any warning text pm2 prints before the JSON.
+            # Parsed with venv Python
             pm2_state() {
               pm2 jlist 2>/dev/null | "$VENV_PY" -c '
             import json, sys, time
@@ -96,7 +96,7 @@ jobs:
             cd "$APP_DIR"
             PREV_COMMIT=$(git rev-parse HEAD)
             REQS_CHANGED=0
-            TOUCHED=0   # becomes 1 once we start modifying the working tree
+            TOUCHED=0
 
             rollback() {
               trap - ERR
@@ -114,7 +114,7 @@ jobs:
                 pm2 logs "$APP_NAME" --lines 50 --nostream
                 echo "State after rollback: $(pm2_state)"
               else
-                echo "Nothing was changed on the VM"
+                echo "Nothing changed"
               fi
               exit 1
             }
@@ -145,7 +145,7 @@ jobs:
             pm2 restart "$APP_NAME"
             read -r _ BASE_RESTARTS _ <<< "$(pm2_state)"
 
-            # 4. Health check: must stay online AND not restart again (catches crash loops).
+            # 4. Health check: must stay online AND not restart again
             echo "Watching $APP_NAME for ${STABLE_SECS}s..."
             for _ in $(seq 1 $((STABLE_SECS / 5))); do
               sleep 5
@@ -158,4 +158,4 @@ jobs:
 
             trap - ERR
             pm2 save
-            echo "✅ Deployed ${TARGET_SHA:0:7}; $APP_NAME online and stable (uptime ${UPTIME}s)."
+            echo "✅ ${TARGET_SHA:0:7}; $APP_NAME OK (up ${UPTIME}s)."
