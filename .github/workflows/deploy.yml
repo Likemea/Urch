@@ -27,20 +27,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install ruff==0.16.9 pytest==9.1.1
+          pip install ruff==0.16.9 pytest==9.1.1 pytest-asyncio==1.4.0
 
       - name: Ruff lint and format check
         run: |
           ruff format --check .
 
-      - name: Tests (phase 1 only)
+      - name: Run Test Suite (Phases 1 & 2)
         env:
           PYTHONPATH: .
           BOT_TOKEN: "dummy_token_for_ci_testing_only"
           GROQ_API_KEY: "dummy_key"
           POLLINATIONS_API_KEY: "dummy_key"
           GOOGLE_API_KEY: "dummy_key"
-        run: pytest -q -x tests/test_phase1.py
+        run: pytest -q -x tests/
 
   deploy:
     needs: quality-check
@@ -67,8 +67,8 @@ jobs:
 
             APP_NAME="Urch"
             APP_DIR="/home/Dani/Urch"
-            VENV_PY="/home/Dani/.venv/bin/python"
-            VENV_PIP="/home/Dani/.venv/bin/pip"
+            VENV_PY="/home/Dani/venv/bin/python"
+            VENV_PIP="/home/Dani/venv/bin/pip"
             TARGET_SHA="${{ github.sha }}"   # commit that passed CI
             STABLE_SECS=25
 
@@ -120,7 +120,7 @@ jobs:
             }
             trap rollback ERR
 
-            echo "Current: ${PREV_COMMIT:0:7}  ->  target: ${TARGET_SHA:0:7}"
+            echo "Current: ${PREV_COMMIT:0:7}  ->  target:${TARGET_SHA:0:7}"
 
             # 1. Fetch then confirm the CI-tested commit actually arrived.
             git fetch --prune origin main
@@ -153,16 +153,16 @@ jobs:
             read -r _ BASE_RESTARTS _ <<< "$(pm2_state)"
 
             # 4. Health check: must stay online AND not restart again
-            echo "Watching $APP_NAME for ${STABLE_SECS}s..."
-            for _ in $(seq 1 $((STABLE_SECS / 5))); do
+            echo "Watching $APP_NAME for${STABLE_SECS}s..."
+            for _ in $(seq 1$((STABLE_SECS / 5))); do
               sleep 5
               read -r STATUS RESTARTS UPTIME <<< "$(pm2_state)"
               if [ "$STATUS" != "online" ] || [ "$RESTARTS" -gt "$BASE_RESTARTS" ]; then
-                echo "::error::Unhealthy: status=$STATUS, restarts=$RESTARTS (baseline $BASE_RESTARTS)"
+                echo "::error::Unhealthy: status=$STATUS, restarts=$RESTARTS (baseline$BASE_RESTARTS)"
                 false   # triggers ERR trap -> rollback
               fi
             done
 
             trap - ERR
             pm2 save
-            echo "✅ ${TARGET_SHA:0:7}; $APP_NAME OK (up ${UPTIME}s)."
+            echo "✅ ${TARGET_SHA:0:7}; $APP_NAME OK (up${UPTIME}s)."
