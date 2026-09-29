@@ -1,8 +1,13 @@
 # tests/conftest.py
 import sys
 import types
+from pathlib import Path
 import pytest
 import pytest_asyncio
+
+PROJECT_ROOT = Path(__file__).parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _install_config_stub():
@@ -25,17 +30,13 @@ async def fresh_db(tmp_path, monkeypatch):
     operate against the same instance."""
     import database as db_module
     from database import Database
+    import utils as utils_module
 
     test_db = Database(str(tmp_path / "test.db"))
     await test_db.initialize()
 
     monkeypatch.setattr(db_module, "db", test_db, raising=False)
-    try:
-        import utils as utils_module
-
-        monkeypatch.setattr(utils_module, "db", test_db, raising=False)
-    except ImportError:
-        pass
+    monkeypatch.setattr(utils_module, "db", test_db, raising=False)
 
     try:
         yield test_db

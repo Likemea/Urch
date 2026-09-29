@@ -22,9 +22,9 @@ class Database:
 
     async def initialize(self):
         """Initialize database and create tables"""
-        self.conn = await aiosqlite.connect(self.db_path)
-        if self.conn:
+        if self.conn is not None:
             return
+        self.conn = await aiosqlite.connect(self.db_path)
         async with self.conn.execute("PRAGMA journal_mode=WAL"):
             pass
         async with self.conn.execute("PRAGMA synchronous=NORMAL"):
@@ -683,9 +683,17 @@ class Database:
                 row = await cur.fetchone()
                 if not row:
                     return False
+
                 async with self.conn.execute(
-                    "UPDATE user_params SET active_persona=?, user_persona=?, ai_persona=? WHERE user_id=?",
-                    (name, row[0], row[1], user_id),
+                    """
+                    INSERT INTO user_params (user_id, active_persona, user_persona, ai_persona)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        active_persona = excluded.active_persona,
+                        user_persona = excluded.user_persona,
+                        ai_persona = excluded.ai_persona
+                    """,
+                    (user_id, name, row[0], row[1]),
                 ):
                     await self.conn.commit()
                     return True

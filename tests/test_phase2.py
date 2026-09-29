@@ -179,12 +179,14 @@ async def test_clear_conversation_history(fresh_db):
 @pytest.mark.asyncio
 async def test_roll_rarities_returns_valid_names(fresh_db):
     from utils import roll_rarities
-    from raritylist import RARITY_NAMES
+    from raritylist import RARITIES
+
+    rarity_names = {r[0] if isinstance(r, (tuple, list)) else r for r in RARITIES}
 
     await fresh_db.ensure_user("u10")
     results = await roll_rarities("u10", count=25, provided_luck=1.0)
     assert len(results) == 25
-    assert all(r in RARITY_NAMES for r in results)
+    assert all(r in rarity_names for r in results)
 
 
 @pytest.mark.asyncio
