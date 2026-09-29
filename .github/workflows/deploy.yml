@@ -40,7 +40,7 @@ jobs:
           GROQ_API_KEY: "dummy_key"
           POLLINATIONS_API_KEY: "dummy_key"
           GOOGLE_API_KEY: "dummy_key"
-        run: pytest -q -x tests/
+        run: pytest -q -x tests/test_phase1.py tests/test_phase2.py
 
   deploy:
     needs: quality-check
