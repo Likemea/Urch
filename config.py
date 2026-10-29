@@ -20,7 +20,7 @@ def get_env_int(key: str) -> int:
         raise ValueError(f"Variable '{key}' must be a valid integer, got '{val}'")
     return int(val)
 
-
+APPLICATION_ID = get_env_var("APPLICATION_ID")
 BOT_TOKEN = get_env_var("BOT_TOKEN")
 GROQ_API_KEY = get_env_var("GROQ_API_KEY")
 POLLINATIONS_API_KEY = get_env_var("POLLINATIONS_API_KEY")

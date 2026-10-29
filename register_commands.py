@@ -3,7 +3,7 @@ import requests
 import json
 import config
 
-APPLICATION_ID = "1228418730103541780"
+APPLICATION_ID = config.APPLICATION_ID
 BOT_TOKEN = config.BOT_TOKEN
 
 url = f"https://discord.com/api/v10/applications/{APPLICATION_ID}/commands"

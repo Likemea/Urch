@@ -1,9 +1,8 @@
 # Urch/commands/leaderboard.py
-from typing import Optional
+from typing import Optional, List, Any
 import discord
 from discord import app_commands
 from discord.ext import commands
-from typing import List
 
 from utils import get_upgrade_effect, format_number
 import database

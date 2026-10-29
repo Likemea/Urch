@@ -35,4 +35,3 @@ logs/
 data/*.db
 .ruff_cache/
 .pytest_cache/
-agents/teamwork/explorer_survey/progress.md

@@ -17,6 +17,7 @@ import stat
 import sys
 import tempfile
 import uuid
+import platform
 
 import discord
 
@@ -382,6 +383,8 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
 
     Callers should also send the result with `allowed_mentions=discord.AllowedMentions.none()`.
     """
+    if platform.system() == "Windows":
+        return "⚠ bwrap isn't available on windows", []
     bwrap_path = _which("bwrap")
     if not bwrap_path:
         return "❌ Bubblewrap (`bwrap`) is not available on this system.", []
