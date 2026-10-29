@@ -321,9 +321,24 @@ async def roll_rarities(user_id: str, count: int = 1, provided_luck: float = Non
     luck = max(1.0, float(luck or 1.0))
 
     if luck <= 1.0:
-        weights = RARITY_BASE_PROBS
+        weights = list(RARITY_BASE_PROBS)
     else:
         weights = [p * (luck ** (rank * 1.2)) for p, rank in zip(RARITY_BASE_PROBS, RARITY_RANKS)]
+
+    try:
+        from biomes import get_active_biome
+
+        active_biome = get_active_biome()
+        if active_biome:
+            boosted_names = active_biome.get("rarity_names") or set()
+            biome_mult = float(active_biome.get("multiplier", 1.0))
+            if boosted_names and biome_mult > 1.0:
+                weights = [
+                    w * biome_mult if name in boosted_names else w
+                    for name, w in zip(RARITY_NAMES, weights)
+                ]
+    except Exception as e:
+        print(f"Error applying biome weight boost: {e}")
 
     return random.choices(RARITY_NAMES, weights=weights, k=count)
 
@@ -338,7 +353,7 @@ async def process_autorolls(user_ids: List[str]):
     if not user_ids:
         return []
 
-    from buffs import evaluate_active_buffs
+    from buffs import evaluate_active_buffs, apply_dupe_buff
 
     rare_hits = []  # List of (user_id, rarity_name, one_in, total_luck)
 
@@ -366,6 +381,7 @@ async def process_autorolls(user_ids: List[str]):
             num_rolls = max(1, 1 + int(extra_rolls / 2))
 
             results = await roll_rarities(user_id, count=num_rolls, provided_luck=total_luck)
+            results, _ = apply_dupe_buff(results, buff_data)
 
             roll_count_inc = len(results)
             new_highscore = user.get("highscore")
@@ -481,6 +497,48 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
 
     except Exception as e:
         print(f"Failed to log rare roll: {e}")
+
+
+async def log_biome_event(bot, biome_state: Dict[str, any]):
+    """Announces a newly triggered server-wide Biome event in the rare-rolls channel."""
+    try:
+        if not bot or not biome_state:
+            return
+        guild = bot.get_guild(LOG_GUILD_ID)
+        if not guild:
+            return
+        channel = discord.utils.get(guild.text_channels, name=LOG_CHANNEL_NAME)
+        if not channel:
+            return
+
+        mult_val = biome_state.get("multiplier", 1.0)
+        mult_str = f"x{int(mult_val)}" if float(mult_val).is_integer() else f"x{mult_val:.1f}"
+        dur_mins = max(1, int(biome_state.get("duration_seconds", 900) // 60))
+
+        embed = discord.Embed(
+            title=f"{biome_state['emoji']} Server-Wide Event: {biome_state['name']}!",
+            description=f"*{biome_state['description']}*\n\n"
+            f"All themed rarities in this biome have a **{mult_str} chance boost** for the next **{dur_mins} minutes**!",
+            color=discord.Color(biome_state.get("color", 0x5865F2)),
+        )
+        embed.add_field(name="Chance Boost", value=f"**{mult_str}**", inline=True)
+        embed.add_field(name="Duration", value=f"**{dur_mins} minutes**", inline=True)
+        embed.add_field(
+            name="Affected Rarities",
+            value=f"**{len(biome_state.get('rarity_names', []))}** themed rarities (use `/biome` to view)",
+            inline=True,
+        )
+        embed.timestamp = discord.utils.utcnow()
+
+        webhooks = await channel.webhooks()
+        webhook = discord.utils.get(webhooks, name="Rarity Logger")
+        if not webhook:
+            webhook = await channel.create_webhook(name="Rarity Logger")
+
+        avatar_url = bot.user.display_avatar.url if bot.user else None
+        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+    except Exception as e:
+        print(f"Failed to log biome event: {e}")
 
 
 # --- Upgrade Functions ---
@@ -654,12 +712,14 @@ def format_number(num: float) -> str:
     if num < 1000:
         return f"{num:.2f}"
 
-    suffixes = ["", "k", "M", "B", "T", "Qa", "Qn", "Sx", "Sp", "Oc", "No", "Dc"]
+    suffixes = ["", "k", "M", "B", "T", "Qa", "Qn", "Sx", "Sp", "Oc", "No", "Dc", "Ud", "Dd"]
     magnitude = 0
     while round(abs(num), 2) >= 1000 and magnitude < len(suffixes) - 1:
         magnitude += 1
         num /= 1000.0
 
+    if abs(num) >= 10000:
+        return f"{num:.2e}"
     return f"{num:.2f}{suffixes[magnitude]}"
 
 
@@ -701,6 +761,7 @@ __all__ = [
     "format_number",
     "process_autorolls",
     "log_rare_roll",
+    "log_biome_event",
     "roll_rarity",
     "roll_rarities",
     "update_user_data",

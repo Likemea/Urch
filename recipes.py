@@ -83,4 +83,27 @@ POTION_RECIPES = {
             "luck_mult": 11.0,
         },
     },
+    "dupe_potion": {
+        "name": "🧬 Dupe Potion",
+        "description": "25% chance to double any 1 in 1M+ rarity rolled for 5 minutes.",
+        "reqs": {
+            "clovers": 7500,
+            "crystalline_clover": 25,
+            "transcendant": 15,
+            "subatomic": 10,
+            "galactic": 5,
+            "temporal": 2,
+            "iridescence": 1,
+        },
+        "buff": {
+            "type": "duration",
+            "duration_seconds": 300,
+            "targets": ["manual", "autoroll"],
+            "luck_mult": 1.0,
+            "clover_mult": 1.0,
+            "extra_rolls": 0,
+            "dupe_chance": 0.25,
+            "dupe_min_one_in": 1_000_000,
+        },
+    },
 }

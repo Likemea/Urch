@@ -30,7 +30,9 @@ from utils import (
     get_message_ids_for_reply,
     process_autorolls,
     log_rare_roll,
+    log_biome_event,
 )
+from biomes import check_and_advance_biome
 from providers import (
     MODELS,
     call_model_direct,
@@ -502,6 +504,10 @@ from safeguard import check_safeguard, _SAFEGUARD_CAPS
 @tasks.loop(seconds=10)
 async def autoroll_heartbeat():
     try:
+        new_biome = check_and_advance_biome()
+        if new_biome:
+            await log_biome_event(bot, new_biome)
+
         active_ids = await db.get_active_rollers()
         if not active_ids:
             return

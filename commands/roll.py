@@ -14,11 +14,22 @@ from utils import (
     format_number,
 )
 from raritylist import RARITIES
-from buffs import evaluate_active_buffs
+from buffs import evaluate_active_buffs, apply_dupe_buff
+from biomes import format_active_biome_banner
 
 RARITY_ORDER = [r[0] for r in RARITIES]
 RARITY_WEIGHT_MAP = {r[0]: r[1] for r in RARITIES}
 TOTAL_RARITY_WEIGHT = sum(r[1] for r in RARITIES)
+
+
+def _build_roll_footer(buff_data: dict) -> str:
+    parts = []
+    if buff_data.get("active_names"):
+        parts.append(f"Active Potions: {', '.join(buff_data['active_names'])}")
+    biome_banner = format_active_biome_banner()
+    if biome_banner:
+        parts.append(f"Biome: {biome_banner}")
+    return " • ".join(parts)
 
 
 class ButtonView(discord.ui.View):
@@ -56,6 +67,7 @@ class ButtonView(discord.ui.View):
             total_rolls = 1 + extra_rolls
 
             all_rolls = await roll_rarities(self.user_id, count=total_rolls, provided_luck=luck)
+            all_rolls, duped_rolls = apply_dupe_buff(all_rolls, buff_data)
             updated_user = await update_user_data(
                 self.user_id, all_rolls, action="keep", clover_mult=buff_data.get("clover_mult", 1.0)
             )
@@ -75,6 +87,12 @@ class ButtonView(discord.ui.View):
         summary = "\n".join(
             f"x{count} {rarity}" if count > 1 else rarity for rarity, count in sorted_results
         )
+        if duped_rolls:
+            dupe_counts = Counter(duped_rolls)
+            dupe_str = ", ".join(
+                f"x{c} {r}" if c > 1 else r for r, c in dupe_counts.items()
+            )
+            summary += f"\n\n🧬 **Duped!** (+{dupe_str})"
 
         new_roll_count = updated_user.get("roll_count", user.get("roll_count", 0))
         new_highscore = updated_user.get(
@@ -87,8 +105,9 @@ class ButtonView(discord.ui.View):
         new_embed.add_field(name="Best Roll", value=new_highscore, inline=True)
         new_embed.add_field(name="Luck", value=format_number(luck), inline=True)
 
-        if buff_data["active_names"]:
-            new_embed.set_footer(text=f"Active Potions: {', '.join(buff_data['active_names'])}")
+        footer_text = _build_roll_footer(buff_data)
+        if footer_text:
+            new_embed.set_footer(text=footer_text)
 
         self.rarity = all_rolls[0] if all_rolls else self.rarity
 
@@ -150,6 +169,7 @@ class RollCommand(commands.Cog):
             total_rolls = 1 + extra_rolls
 
             all_rolls = await roll_rarities(user_id, count=total_rolls, provided_luck=luck)
+            all_rolls, duped_rolls = apply_dupe_buff(all_rolls, buff_data)
             updated_user = await update_user_data(
                 user_id, all_rolls, action="keep", clover_mult=buff_data.get("clover_mult", 1.0)
             )
@@ -169,6 +189,12 @@ class RollCommand(commands.Cog):
         summary = "\n".join(
             f"x{count} {rarity}" if count > 1 else rarity for rarity, count in sorted_results
         )
+        if duped_rolls:
+            dupe_counts = Counter(duped_rolls)
+            dupe_str = ", ".join(
+                f"x{c} {r}" if c > 1 else r for r, c in dupe_counts.items()
+            )
+            summary += f"\n\n🧬 **Duped!** (+{dupe_str})"
 
         roll_count = updated_user.get("roll_count", user.get("roll_count", 0))
         highscore = updated_user.get("highscore", all_rolls[0] if all_rolls else "")
@@ -179,8 +205,9 @@ class RollCommand(commands.Cog):
         embed.add_field(name="Best Roll", value=highscore, inline=True)
         embed.add_field(name="Luck", value=format_number(luck), inline=True)
 
-        if buff_data["active_names"]:
-            embed.set_footer(text=f"Active Potions: {', '.join(buff_data['active_names'])}")
+        footer_text = _build_roll_footer(buff_data)
+        if footer_text:
+            embed.set_footer(text=footer_text)
 
         first_rarity = all_rolls[0] if all_rolls else ""
         view = ButtonView(user_id, first_rarity, self.bot)
