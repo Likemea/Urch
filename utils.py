@@ -73,7 +73,10 @@ async def save_user_data(user_id: str, data: Dict[str, any]):
 
 
 async def update_user_data(
-    user_id: str, new_rarity: Union[str, List[str]], action: str = "none"
+    user_id: str,
+    new_rarity: Union[str, List[str]],
+    action: str = "none",
+    clover_mult: Optional[float] = None,
 ) -> Optional[Dict[str, any]]:
     async with db.lock_user(user_id):
         user = await db.get_user_data(user_id)
@@ -111,8 +114,10 @@ async def update_user_data(
                 inventory[r] = inventory.get(r, 0) + count
                 discovered[r] = True
 
+            old_roll_count = user.get("roll_count", 0)
             roll_count_inc = len(rarities_list)
-            user["roll_count"] = user.get("roll_count", 0) + roll_count_inc
+            new_roll_count = old_roll_count + roll_count_inc
+            user["roll_count"] = new_roll_count
 
             current_luck = user.get("luck_multi", 1.0)
             new_luck = current_luck + (LUCK_GROWTH_PER_ROLL * roll_count_inc)
@@ -125,17 +130,32 @@ async def update_user_data(
             effective_luck = (new_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
 
             if effective_luck >= 1000:
-                every = bonuses.get("clover_every", 10)
-                current_rolls = user["roll_count"]
+                every = max(1, bonuses.get("clover_every", 10))
+                triggers = (new_roll_count // every) - (old_roll_count // every)
 
-                expected = int((current_rolls // every) * user.get("clover_multi", 1.0))
-                already = user.get("clovers_earned", 0)
+                if triggers > 0:
+                    if clover_mult is None:
+                        try:
+                            from buffs import evaluate_active_buffs
 
-                if expected > already:
-                    diff = expected - already
-                    currencies = user.setdefault("currencies", {})
-                    currencies["clovers"] = currencies.get("clovers", 0) + diff
-                    user["clovers_earned"] = expected
+                            buff_data = await evaluate_active_buffs(user_id, context="manual")
+                            clover_mult = float(buff_data.get("clover_mult", 1.0))
+                            # Reload currencies from db because evaluate_active_buffs modified charges in DB
+                            user["currencies"] = await db.get_user_currencies(user_id)
+                        except Exception:
+                            clover_mult = 1.0
+
+                    extra_bonus = max(
+                        0.0,
+                        float(bonuses.get("clover_bonus", 0.0))
+                        - (1.0 if float(bonuses.get("clover_bonus", 0.0)) >= 1.0 else 0.0),
+                    )
+                    base_multi = float(user.get("clover_multi", 1.0)) + extra_bonus
+                    earned_clovers = int(triggers * base_multi * clover_mult)
+                    if earned_clovers > 0:
+                        currencies = user.setdefault("currencies", {})
+                        currencies["clovers"] = currencies.get("clovers", 0) + earned_clovers
+                        user["clovers_earned"] = user.get("clovers_earned", 0) + earned_clovers
 
         await db.save_user_data(user_id, user)
         return user
@@ -291,7 +311,7 @@ async def roll_rarities(user_id: str, count: int = 1, provided_luck: float = Non
         luck = provided_luck
     else:
         user = await ensure_user(user_id)
-        if "luck_override" in user and user["luck_override"]:
+        if user.get("luck_override") is not None:
             luck = float(user["luck_override"])
         else:
             base_luck = float(user.get("luck_multi", 1.0))
@@ -320,78 +340,81 @@ async def process_autorolls(user_ids: List[str]):
 
     from buffs import evaluate_active_buffs
 
-    updates = []
     rare_hits = []  # List of (user_id, rarity_name, one_in, total_luck)
 
     for user_id in user_ids:
-        user = await db.get_user_data(user_id)
-        if not user:
-            continue
+        async with db.lock_user(user_id):
+            user = await db.get_user_data(user_id)
+            if not user:
+                continue
 
-        # Luck and bonuses
-        bonuses = await get_upgrade_effect(user_id, user_obj=user)
-        luck_override = user.get("luck_override")
-        if luck_override is not None:
-            total_luck = float(luck_override)
-        else:
-            base_luck = float(user.get("luck_multi", 1.0))
-            total_luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
+            # Luck and bonuses
+            bonuses = await get_upgrade_effect(user_id, user_obj=user)
+            luck_override = user.get("luck_override")
+            if luck_override is not None:
+                total_luck = float(luck_override)
+            else:
+                base_luck = float(user.get("luck_multi", 1.0))
+                total_luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
 
-        buff_data = await evaluate_active_buffs(user_id, context="autoroll")
-        total_luck *= buff_data["luck_mult"]
+            buff_data = await evaluate_active_buffs(user_id, context="autoroll")
+            total_luck *= buff_data["luck_mult"]
 
-        total_luck = max(1.0, total_luck)
+            total_luck = max(1.0, total_luck)
 
-        extra_rolls = bonuses.get("multi_roll", 0)
-        num_rolls = max(1, 1 + int(extra_rolls / 2))
+            extra_rolls = bonuses.get("multi_roll", 0)
+            num_rolls = max(1, 1 + int(extra_rolls / 2))
 
-        results = await roll_rarities(user_id, count=num_rolls, provided_luck=total_luck)
+            results = await roll_rarities(user_id, count=num_rolls, provided_luck=total_luck)
 
-        roll_count_inc = len(results)
-        new_highscore = user.get("highscore")
-        rarity_order = [r[0] for r in RARITIES]
+            roll_count_inc = len(results)
+            new_highscore = user.get("highscore")
+            rarity_order = [r[0] for r in RARITIES]
 
-        inventory_diff = {}
+            inventory_diff = {}
 
-        for res in results:
-            inventory_diff[res] = inventory_diff.get(res, 0) + 1
+            for res in results:
+                inventory_diff[res] = inventory_diff.get(res, 0) + 1
 
-            if not new_highscore or rarity_order.index(res) > rarity_order.index(new_highscore):
-                new_highscore = res
+                if not new_highscore or rarity_order.index(res) > rarity_order.index(new_highscore):
+                    new_highscore = res
 
-            # if one_in >= (total_luck * 100), it's a rare roll
-            rarity_data = next((r for r in RARITIES if r[0] == res), None)
-            if rarity_data:
-                weight = rarity_data[1]
-                total_weight = sum(r[1] for r in RARITIES)
-                one_in = total_weight / weight
+                # if one_in >= (total_luck * 100), it's a rare roll
+                rarity_data = next((r for r in RARITIES if r[0] == res), None)
+                if rarity_data:
+                    weight = rarity_data[1]
+                    total_weight = sum(r[1] for r in RARITIES)
+                    one_in = total_weight / weight
 
-                if one_in >= (total_luck * 100):
-                    rare_hits.append((user_id, res, one_in, total_luck))
+                    if one_in >= (total_luck * 100):
+                        rare_hits.append((user_id, res, one_in, total_luck))
 
-        # Luck growth
-        current_luck = user.get("luck_multi", 1.0)
-        new_luck = round(current_luck + (LUCK_GROWTH_PER_ROLL * roll_count_inc), 3)
-        max_luck = max(user.get("max_luck", 1.0), new_luck)
+            # Luck growth
+            current_luck = user.get("luck_multi", 1.0)
+            new_luck = round(current_luck + (LUCK_GROWTH_PER_ROLL * roll_count_inc), 3)
+            max_luck = max(user.get("max_luck", 1.0), new_luck)
 
-        # Clovers
-        clovers_earned = user.get("clovers_earned", 0)
-        currency_diff = {}
-        if total_luck >= 1000:
-            every = bonuses.get("clover_every", 10)
-            total_rolls_after = user.get("roll_count", 0) + roll_count_inc
-            expected = int(
-                (total_rolls_after // every)
-                * user.get("clover_multi", 1.0)
-                * buff_data["clover_mult"]
-            )
-            if expected > clovers_earned:
-                diff = expected - clovers_earned
-                currency_diff["clovers"] = diff
-                clovers_earned = expected
+            # Clovers
+            clovers_earned = user.get("clovers_earned", 0)
+            currency_diff = {}
+            if total_luck >= 1000:
+                every = max(1, bonuses.get("clover_every", 10))
+                old_rolls = user.get("roll_count", 0)
+                total_rolls_after = old_rolls + roll_count_inc
+                triggers = (total_rolls_after // every) - (old_rolls // every)
+                if triggers > 0:
+                    extra_bonus = max(
+                        0.0,
+                        float(bonuses.get("clover_bonus", 0.0))
+                        - (1.0 if float(bonuses.get("clover_bonus", 0.0)) >= 1.0 else 0.0),
+                    )
+                    base_multi = float(user.get("clover_multi", 1.0)) + extra_bonus
+                    earned_clovers = int(triggers * base_multi * buff_data.get("clover_mult", 1.0))
+                    if earned_clovers > 0:
+                        currency_diff["clovers"] = earned_clovers
+                        clovers_earned += earned_clovers
 
-        updates.append(
-            {
+            update = {
                 "user_id": user_id,
                 "roll_count": user.get("roll_count", 0) + roll_count_inc,
                 "highscore": new_highscore,
@@ -401,10 +424,7 @@ async def process_autorolls(user_ids: List[str]):
                 "inventory_diff": inventory_diff,
                 "currency_diff": currency_diff,
             }
-        )
-
-    if updates:
-        await db.bulk_update_autoroll(updates)
+            await db.bulk_update_autoroll([update])
 
     return rare_hits
 
@@ -557,7 +577,7 @@ async def edit_existing_persona(user_id: str, name: str, user_p: str, ai_p: str)
 
 
 async def get_messages_for_context(
-    user_id, is_dm, guild_id=None, include_internal=False, read_only=True
+    user_id, is_dm, guild_id=None, include_internal=False, read_only=True, channel_id=None
 ):
     return await db.get_messages_for_context(
         user_id if is_dm else None,
@@ -565,15 +585,17 @@ async def get_messages_for_context(
         DM_HISTORY_LIMIT if is_dm else SERVER_HISTORY_LIMIT,
         include_internal,
         read_only,
+        channel_id=channel_id if not is_dm else None,
     )
 
 
 async def append_message_for_context(
-    user_id, is_dm, role, content, guild_id=None, message_ids=None, author_id=None
+    user_id, is_dm, role, content, guild_id=None, message_ids=None, author_id=None, channel_id=None
 ):
     db_user_id = str(user_id) if is_dm else None
     db_guild_id = str(guild_id) if not is_dm and guild_id else None
     final_author_id = str(author_id) if author_id else None
+    final_channel_id = str(channel_id) if not is_dm and channel_id else None
     max_history = DM_HISTORY_LIMIT if is_dm else SERVER_HISTORY_LIMIT
 
     await db.add_conversation_message(
@@ -584,23 +606,48 @@ async def append_message_for_context(
         message_ids=message_ids,
         author_id=final_author_id,
         max_history=max_history,
+        channel_id=final_channel_id,
     )
 
 
-async def update_message_in_history(user_id, is_dm, guild_id, message_id, new_content):
-    return await db.update_message_in_history(user_id, is_dm, guild_id, message_id, new_content)
+async def update_message_in_history(
+    user_id, is_dm, guild_id, message_id, new_content, new_message_ids=None, channel_id=None
+):
+    return await db.update_message_in_history(
+        user_id, is_dm, guild_id, message_id, new_content, new_message_ids, channel_id=channel_id
+    )
 
 
-async def delete_message_from_history(user_id, is_dm, guild_id, message_id):
-    return await db.delete_message_from_history(user_id, is_dm, guild_id, message_id)
+async def delete_message_from_history(user_id, is_dm, guild_id, message_id, channel_id=None):
+    return await db.delete_message_from_history(
+        user_id, is_dm, guild_id, message_id, channel_id=channel_id
+    )
 
 
-async def check_reaction_permission(user_id, is_dm, guild_id, bot_msg_id, reactor_id):
-    return await db.check_reaction_permission(user_id, is_dm, guild_id, bot_msg_id, reactor_id)
+async def check_reaction_permission(
+    user_id, is_dm, guild_id, bot_msg_id, reactor_id, channel_id=None
+):
+    return await db.check_reaction_permission(
+        user_id, is_dm, guild_id, bot_msg_id, reactor_id, channel_id=channel_id
+    )
 
 
-async def get_context_for_message(user_id, is_dm, guild_id, message_id):
-    return await db.get_context_for_message(user_id, is_dm, guild_id, message_id)
+async def get_context_for_message(user_id, is_dm, guild_id, message_id, channel_id=None):
+    return await db.get_context_for_message(
+        user_id, is_dm, guild_id, message_id, channel_id=channel_id
+    )
+
+
+async def get_original_author_for_message(user_id, is_dm, guild_id, message_id, channel_id=None):
+    return await db.get_original_author_for_message(
+        user_id, is_dm, guild_id, message_id, channel_id=channel_id
+    )
+
+
+async def get_message_ids_for_reply(user_id, is_dm, guild_id, message_id, channel_id=None):
+    return await db.get_message_ids_for_reply(
+        user_id, is_dm, guild_id, message_id, channel_id=channel_id
+    )
 
 
 def format_number(num: float) -> str:
@@ -649,6 +696,8 @@ __all__ = [
     "delete_message_from_history",
     "check_reaction_permission",
     "get_context_for_message",
+    "get_original_author_for_message",
+    "get_message_ids_for_reply",
     "format_number",
     "process_autorolls",
     "log_rare_roll",

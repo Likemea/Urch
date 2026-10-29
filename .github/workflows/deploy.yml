@@ -32,6 +32,8 @@ jobs:
       - name: Ruff lint and format check
         run: |
           ruff format --check .
+          # Bug-class rules only: syntax errors, undefined names, invalid comparisons.
+          ruff check . --select E9,F63,F7,F82
 
       - name: Run Test Suite (Phases 1 & 2)
         env:
@@ -139,6 +141,8 @@ jobs:
                 with sqlite3.connect(db_path) as src, sqlite3.connect('$APP_DIR/bot_data.db.bak_' + str(int(os.path.getmtime(db_path)))) as dst:
                     src.backup(dst)
             " 2>/dev/null || true
+            # Keep only the 5 newest pre-deploy backups.
+            ls -1t "$APP_DIR"/bot_data.db.bak_* 2>/dev/null | tail -n +6 | xargs -r rm -f --
             git reset --hard "$TARGET_SHA"
 
             if [ "$REQS_CHANGED" = "1" ]; then

@@ -47,7 +47,22 @@ def get_upgrade_effect(
             continue
         tier = int(tier)
 
-        if key in LUCK_UPGRADES:
+        if key == "exp_luck" and key in LUCK_UPGRADES:
+            rarity_names = [r[0] for r in RARITIES]
+            best = user.get("highscore", rarity_names[0] if rarity_names else None)
+            try:
+                idx = rarity_names.index(best)
+            except Exception:
+                idx = 0
+            exponent = 0.2 * tier
+            try:
+                base = max(0.0, math.log(idx + 2))
+                multiplier = base**exponent if base > 0 else 1.0
+            except Exception:
+                multiplier = 1.0
+            effects["exp_bonus"] *= multiplier
+
+        elif key in LUCK_UPGRADES:
             defn = LUCK_UPGRADES[key]
 
             if "effect_per_tier" in defn:
@@ -64,21 +79,6 @@ def get_upgrade_effect(
                         effects["clover_bonus"] += res.get("clover_bonus", 0.0)
                 except Exception as e:
                     print(f"Error calculating luck upgrade {key}: {e}")
-
-        if key == "exp_luck" and key in LUCK_UPGRADES:
-            rarity_names = [r[0] for r in RARITIES]
-            best = user.get("highscore", rarity_names[0] if rarity_names else None)
-            try:
-                idx = rarity_names.index(best)
-            except Exception:
-                idx = 0
-            exponent = 0.2 * tier
-            try:
-                base = max(0.0, math.log(idx + 2))
-                multiplier = base**exponent if base > 0 else 1.0
-            except Exception:
-                multiplier = 1.0
-            effects["exp_bonus"] *= multiplier
 
     roll_upgs = upgrades.get("roll", {})
     for key, tier in roll_upgs.items():

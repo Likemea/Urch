@@ -9,13 +9,33 @@ from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageFilter, ImageOps
 
+from providers import get_session
+
+MAX_AVATAR_BYTES = 8 * 1024 * 1024  # 8 MB cap
+
+
+async def _read_bounded(response: aiohttp.ClientResponse, max_bytes: int) -> bytes | None:
+    if getattr(response, "content_length", None) and response.content_length > max_bytes:
+        return None
+    content = getattr(response, "content", None)
+    if content is not None and hasattr(content, "read"):
+        data = await content.read(max_bytes + 1)
+    else:
+        data = await response.read()
+    if len(data) > max_bytes:
+        return None
+    return data
+
 
 class FilterCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     def process_image(self, image_bytes: bytes, filter_type: str) -> io.BytesIO:
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        with Image.open(io.BytesIO(image_bytes)) as raw_img:
+            if raw_img.width > 2048 or raw_img.height > 2048:
+                raw_img.thumbnail((2048, 2048))
+            image = raw_img.convert("RGB")
 
         if filter_type == "blur":
             image = image.filter(ImageFilter.GaussianBlur(radius=5))
@@ -32,7 +52,7 @@ class FilterCommand(commands.Cog):
         elif filter_type == "sepia":
             sepia = []
             r, g, b = (239, 224, 198)
-            for i in range(255):
+            for i in range(256):
                 sepia.extend((int(r * i / 255), int(g * i / 255), int(b * i / 255)))
             image = image.convert("L")
             image.putpalette(sepia)
@@ -72,11 +92,17 @@ class FilterCommand(commands.Cog):
 
         target_user = user or interaction.user
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(target_user.display_avatar.url) as response:
-                if response.status != 200:
-                    return await interaction.followup.send("Could not download avatar.")
-                data = await response.read()
+        session = await get_session()
+        async with session.get(
+            target_user.display_avatar.url, timeout=aiohttp.ClientTimeout(total=30)
+        ) as response:
+            if response.status != 200:
+                return await interaction.followup.send("Could not download avatar.")
+            data = await _read_bounded(response, MAX_AVATAR_BYTES)
+            if data is None:
+                return await interaction.followup.send(
+                    "❌ Avatar image is too large (maximum allowed size is 8 MB)."
+                )
 
         loop = asyncio.get_running_loop()
         processed_buffer = await loop.run_in_executor(

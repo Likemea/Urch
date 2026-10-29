@@ -85,7 +85,7 @@ async def test_no_duplicate_prefix_command_names(bot):
     for mod in _command_modules():
         await bot.load_extension(mod)
 
-    names = list(bot.commands.keys())
+    names = [cmd.name for cmd in bot.commands]
     duplicates = {n for n in names if names.count(n) > 1}
     assert not duplicates, f"Duplicate prefix-command names: {duplicates}"
 
@@ -98,7 +98,7 @@ async def test_slash_commands_have_descriptions(bot):
 
     missing = [
         cmd.qualified_name
-        for cmd in bot.tree.get_commands()
+        for cmd in bot.tree.get_commands(type=discord.AppCommandType.chat_input)
         if not getattr(cmd, "description", None)
     ]
     assert not missing, f"Slash commands missing descriptions: {missing}"

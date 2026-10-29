@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import shutil
+import site
 import stat
 import sys
 import tempfile
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 EXECUTION_TIMEOUT = 6.0
 
-MAX_CONCURRENT_SANDBOXES = 2
+MAX_CONCURRENT_SANDBOXES = 1
 _sandbox_semaphore = asyncio.Semaphore(MAX_CONCURRENT_SANDBOXES)
 
 REQUIRE_CGROUP_LIMITS = True
@@ -119,10 +120,22 @@ def _bwrap_command(bwrap_path: str, scratch_dir: str) -> list[str]:
         "--clearenv",
     ]
 
+    user_site = None
+    try:
+        user_site = site.getusersitepackages()
+        if not (user_site and os.path.exists(user_site)):
+            user_site = None
+    except Exception:
+        user_site = None
+
+    pythonpath = "/workspace"
+    if user_site:
+        pythonpath = f"/workspace:{user_site}"
+
     sandbox_env = {
         "PATH": f"{venv_dir}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "HOME": "/tmp",
-        "PYTHONPATH": "/workspace",
+        "PYTHONPATH": pythonpath,
         "PYTHONUNBUFFERED": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
         "MPLBACKEND": "Agg",
@@ -148,6 +161,8 @@ def _bwrap_command(bwrap_path: str, scratch_dir: str) -> list[str]:
     ]
     if venv_dir != "/usr":
         read_only_paths.append(venv_dir)
+    if user_site and user_site not in read_only_paths:
+        read_only_paths.append(user_site)
     for path in read_only_paths:
         if os.path.exists(path):
             cmd += ["--ro-bind", path, path]
@@ -180,16 +195,27 @@ def _systemd_prefix(systemd_run: str, scope_name: str) -> list[str]:
         "--collect",
         f"--unit={scope_name}",
         "-p",
-        "MemoryMax=100M",
+        "MemoryMax=144M",
         "-p",
-        "MemoryHigh=75M",
+        "MemoryHigh=128M",
         "-p",
         "MemorySwapMax=0",
         "-p",
-        "CPUQuota=50%",
+        "CPUQuota=100%",
         "-p",
         "TasksMax=64",
     ]
+
+
+def _set_sandbox_rlimits():
+    """Enforce RLIMIT_FSIZE (16MB) in the spawned sandbox process."""
+    try:
+        import resource
+
+        limit = 16 * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+    except Exception:
+        pass
 
 
 async def _drain(stream: asyncio.StreamReader, buf: bytearray, proc) -> bool:
@@ -383,12 +409,17 @@ async def run_sandboxed_python(code: str) -> tuple[str, list[discord.File]]:
                 scope_name = f"urch_sandbox_{uuid.uuid4().hex[:8]}"
                 cmd = _systemd_prefix(systemd_run, scope_name) + cmd
 
+            extra_exec_kwargs = {}
+            if os.name != "nt":
+                extra_exec_kwargs["preexec_fn"] = _set_sandbox_rlimits
+
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
+                **extra_exec_kwargs,
             )
 
             try:

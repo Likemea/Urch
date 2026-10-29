@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 from collections import Counter
 
+from database import db
 from utils import (
     roll_rarities,
     update_user_data,
@@ -36,27 +37,30 @@ class ButtonView(discord.ui.View):
             )
             return
 
-        user = await ensure_user(self.user_id)
-        bonuses = await get_upgrade_effect(self.user_id, user_obj=user)
+        async with db.lock_user(self.user_id):
+            user = await ensure_user(self.user_id)
+            bonuses = await get_upgrade_effect(self.user_id, user_obj=user)
 
-        luck_override = user.get("luck_override")
-        if luck_override is not None:
-            luck = float(luck_override)
-        else:
-            base_luck = user.get("luck_multi", 1.0)
-            luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get("exp_bonus", 1.0)
+            luck_override = user.get("luck_override")
+            if luck_override is not None:
+                luck = float(luck_override)
+            else:
+                base_luck = user.get("luck_multi", 1.0)
+                luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get("exp_bonus", 1.0)
 
-        buff_data = await evaluate_active_buffs(self.user_id, context="manual")
-        luck *= buff_data["luck_mult"]
-        luck = max(1.0, float(luck or 0.0))
+            buff_data = await evaluate_active_buffs(self.user_id, context="manual")
+            luck *= buff_data["luck_mult"]
+            luck = max(1.0, float(luck or 0.0))
 
-        extra_rolls = bonuses.get("multi_roll", 0) + buff_data["extra_rolls"]
-        total_rolls = 1 + extra_rolls
+            extra_rolls = bonuses.get("multi_roll", 0) + buff_data["extra_rolls"]
+            total_rolls = 1 + extra_rolls
 
-        all_rolls = await roll_rarities(self.user_id, count=total_rolls, provided_luck=luck)
-        updated_user = await update_user_data(self.user_id, all_rolls, action="keep")
-        if not updated_user:
-            updated_user = user
+            all_rolls = await roll_rarities(self.user_id, count=total_rolls, provided_luck=luck)
+            updated_user = await update_user_data(
+                self.user_id, all_rolls, action="keep", clover_mult=buff_data.get("clover_mult", 1.0)
+            )
+            if not updated_user:
+                updated_user = user
 
         for r in all_rolls:
             await check_and_log_rarity(self.bot, interaction.user, r, total_luck=luck)
@@ -127,30 +131,33 @@ class RollCommand(commands.Cog):
     async def roll(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
         user_id = str(interaction.user.id)
-        user = await ensure_user(user_id)
-        bonuses = await get_upgrade_effect(user_id, user_obj=user)
+        async with db.lock_user(user_id):
+            user = await ensure_user(user_id)
+            bonuses = await get_upgrade_effect(user_id, user_obj=user)
 
-        luck_override = user.get("luck_override")
-        if luck_override is not None:
-            luck = float(luck_override)
-        else:
-            base_luck = user.get("luck_multi", 1.0)
-            luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get("exp_bonus", 1.0)
+            luck_override = user.get("luck_override")
+            if luck_override is not None:
+                luck = float(luck_override)
+            else:
+                base_luck = user.get("luck_multi", 1.0)
+                luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get("exp_bonus", 1.0)
 
-        buff_data = await evaluate_active_buffs(user_id, context="manual")
-        luck *= buff_data["luck_mult"]
-        luck = max(1.0, float(luck or 0.0))
+            buff_data = await evaluate_active_buffs(user_id, context="manual")
+            luck *= buff_data["luck_mult"]
+            luck = max(1.0, float(luck or 0.0))
 
-        extra_rolls = bonuses.get("multi_roll", 0) + buff_data["extra_rolls"]
-        total_rolls = 1 + extra_rolls
+            extra_rolls = bonuses.get("multi_roll", 0) + buff_data["extra_rolls"]
+            total_rolls = 1 + extra_rolls
 
-        all_rolls = await roll_rarities(user_id, count=total_rolls, provided_luck=luck)
-        updated_user = await update_user_data(user_id, all_rolls, action="keep")
-        if not updated_user:
-            updated_user = user
+            all_rolls = await roll_rarities(user_id, count=total_rolls, provided_luck=luck)
+            updated_user = await update_user_data(
+                user_id, all_rolls, action="keep", clover_mult=buff_data.get("clover_mult", 1.0)
+            )
+            if not updated_user:
+                updated_user = user
 
-        for r in all_rolls:
-            await check_and_log_rarity(self.bot, interaction.user, r, total_luck=luck)
+            for r in all_rolls:
+                await check_and_log_rarity(self.bot, interaction.user, r, total_luck=luck)
 
         counts = Counter(all_rolls)
         sorted_results = sorted(

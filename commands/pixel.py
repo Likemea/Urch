@@ -1,4 +1,5 @@
 # Urch/commands/pixel.py
+import asyncio
 import io
 import random
 
@@ -7,6 +8,57 @@ from discord import app_commands
 from discord.ext import commands
 from PIL import Image
 from perlin_noise import PerlinNoise
+
+
+def _generate_pixel_image_sync(seed: int, size: int, palette: str, pattern: str) -> bytes:
+    rng = random.Random(seed)
+    img = Image.new("RGB", (size, size))
+    pixels = img.load()
+
+    if palette == "grayscale":
+        colors = [(i, i, i) for i in range(256)]
+    elif palette == "red":
+        colors = [(i, 0, 0) for i in range(256)]
+    elif palette == "green":
+        colors = [(0, i, 0) for i in range(256)]
+    elif palette == "blue":
+        colors = [(0, 0, i) for i in range(256)]
+    else:
+        colors = [
+            (rng.randint(0, 255), rng.randint(0, 255), rng.randint(0, 255)) for _ in range(256)
+        ]
+
+    if pattern == "stripes":
+        for i in range(size):
+            color = rng.choice(colors)
+            for j in range(size):
+                pixels[i, j] = color
+    elif pattern == "gradient":
+        start_color = rng.choice(colors)
+        end_color = rng.choice(colors)
+        for i in range(size):
+            for j in range(size):
+                r = start_color[0] + (end_color[0] - start_color[0]) * i // size
+                g = start_color[1] + (end_color[1] - start_color[1]) * j // size
+                b = start_color[2] + (end_color[2] - start_color[2]) * (i + j) // (2 * size)
+                pixels[i, j] = (r, g, b)
+    elif pattern == "noise":
+        noise = PerlinNoise(octaves=6, seed=seed)
+        for i in range(size):
+            for j in range(size):
+                x = i / size
+                y = j / size
+                n = noise([x, y])
+                color_value = int((n + 1) / 2 * 255)
+                pixels[i, j] = (color_value, color_value, color_value)
+    else:
+        for i in range(size):
+            for j in range(size):
+                pixels[i, j] = rng.choice(colors)
+
+    with io.BytesIO() as image_binary:
+        img.save(image_binary, "PNG")
+        return image_binary.getvalue()
 
 
 class PixelCommand(commands.Cog):
@@ -28,65 +80,21 @@ class PixelCommand(commands.Cog):
         palette: str = "random",
         pattern: str = "random",
     ):
-        if seed is None:
-            seed = random.randint(0, 1000000)
-        random.seed(seed)
-
         if size < 16 or size > 256:
             await interaction.response.send_message(
                 "Size must be between 16 and 256.", ephemeral=True
             )
             return
 
-        img = Image.new("RGB", (size, size))
-        pixels = img.load()
+        if seed is None:
+            seed = random.SystemRandom().randint(0, 1000000)
 
-        if palette == "grayscale":
-            colors = [(i, i, i) for i in range(256)]
-        elif palette == "red":
-            colors = [(i, 0, 0) for i in range(256)]
-        elif palette == "green":
-            colors = [(0, i, 0) for i in range(256)]
-        elif palette == "blue":
-            colors = [(0, 0, i) for i in range(256)]
-        else:
-            colors = [
-                (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                for _ in range(256)
-            ]
+        await interaction.response.defer()
 
-        if pattern == "stripes":
-            for i in range(size):
-                color = random.choice(colors)
-                for j in range(size):
-                    pixels[i, j] = color
-        elif pattern == "gradient":
-            start_color = random.choice(colors)
-            end_color = random.choice(colors)
-            for i in range(size):
-                for j in range(size):
-                    r = start_color[0] + (end_color[0] - start_color[0]) * i // size
-                    g = start_color[1] + (end_color[1] - start_color[1]) * j // size
-                    b = start_color[2] + (end_color[2] - start_color[2]) * (i + j) // (2 * size)
-                    pixels[i, j] = (r, g, b)
-        elif pattern == "noise":
-            noise = PerlinNoise(octaves=6, seed=seed)
-            for i in range(size):
-                for j in range(size):
-                    x = i / size
-                    y = j / size
-                    n = noise([x, y])
-                    color_value = int((n + 1) / 2 * 255)
-                    pixels[i, j] = (color_value, color_value, color_value)
-        else:
-            for i in range(size):
-                for j in range(size):
-                    pixels[i, j] = random.choice(colors)
-
-        with io.BytesIO() as image_binary:
-            img.save(image_binary, "PNG")
-            image_binary.seek(0)
-            file = discord.File(fp=image_binary, filename=f"{seed}.png")
+        png_bytes = await asyncio.to_thread(
+            _generate_pixel_image_sync, seed, size, palette, pattern
+        )
+        file = discord.File(fp=io.BytesIO(png_bytes), filename=f"{seed}.png")
 
         embed = discord.Embed(title="Generated Pixel Image", description="", color=0x00FF00)
         embed.add_field(name="Seed", value=f"**{seed}**", inline=True)
@@ -95,7 +103,7 @@ class PixelCommand(commands.Cog):
         embed.add_field(name="Pattern", value=f"**{pattern}**", inline=True)
         embed.set_image(url=f"attachment://{seed}.png")
 
-        await interaction.response.send_message(embed=embed, file=file)
+        await interaction.followup.send(embed=embed, file=file)
 
 
 async def setup(bot):

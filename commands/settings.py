@@ -46,6 +46,14 @@ class SettingsCommand(commands.Cog):
                     val_str = "Auto"
                 else:
                     val_str = MODEL_LIST.get(v, {}).get("disp", v)
+            elif k == "tooling":
+                if v in ("Auto", "True", "all"):
+                    val_str = f"All tools enabled ({len(AVAILABLE_TOOLS)}/{len(AVAILABLE_TOOLS)})"
+                elif v in ("False", "", "none"):
+                    val_str = "None (Disabled)"
+                else:
+                    enabled = [x.strip() for x in str(v).split(",") if x.strip()]
+                    val_str = f"{len(enabled)}/{len(AVAILABLE_TOOLS)} enabled ({', '.join(enabled)})"
             else:
                 val_str = str(v)
 
@@ -298,13 +306,35 @@ class PersonaModal(discord.ui.Modal):
 # ADVANCED SETTINGS
 # ───────────────────────────────
 
+AVAILABLE_TOOLS = [
+    ("web_search", "🔍 Web Search", "DuckDuckGo web searching"),
+    ("fetch_webpage", "🌐 Fetch Webpage", "Read webpage content and articles"),
+    ("execute_code", "🐍 Code Execution", "Run Python 3 scripts & calculations"),
+    ("generate_media", "🎨 Media Generation", "Generate AI images & TTS speech"),
+    ("forum_post", "💬 Forum Post", "Create posts in #urch-bot forum"),
+]
+
+MODELS_PER_PAGE = 20
+
+
+def get_model_page_data():
+    items = list(MODEL_LIST.items())
+    chunks = [items[i : i + MODELS_PER_PAGE] for i in range(0, len(items), MODELS_PER_PAGE)]
+    return chunks if chunks else [[]]
+
 
 class ModelSelect(discord.ui.Select):
-    def __init__(self, user_id, current_model):
-        options = [
-            discord.SelectOption(label="🔄 Auto", value="Auto", description="Let Urch choose")
-        ]
-        for key, info in MODEL_LIST.items():
+    def __init__(self, user_id, current_model, page=0):
+        chunks = get_model_page_data()
+        page = max(0, min(page, len(chunks) - 1))
+        current_chunk = chunks[page]
+
+        options = []
+        if page == 0:
+            options.append(
+                discord.SelectOption(label="🔄 Auto", value="Auto", description="Let Urch choose")
+            )
+        for key, info in current_chunk:
             options.append(
                 discord.SelectOption(label=info["disp"], value=key, description=info["id"])
             )
@@ -313,14 +343,22 @@ class ModelSelect(discord.ui.Select):
             if opt.value == str(current_model):
                 opt.default = True
 
+        placeholder = (
+            f"Choose model (Page {page + 1}/{len(chunks)})"
+            if len(chunks) > 1
+            else "Choose your model"
+        )
         super().__init__(
-            placeholder="Choose your model", min_values=1, max_values=1, options=options, row=0
+            placeholder=placeholder, min_values=1, max_values=1, options=options, row=0
         )
         self.user_id = user_id
+        self.page = page
 
     async def callback(self, interaction: discord.Interaction):
         await set_user_ai_param(self.user_id, "model", self.values[0])
-        await interaction.response.defer()
+        for opt in self.options:
+            opt.default = opt.value == self.values[0]
+        await self.view.refresh_embed(interaction)
 
 
 class ReasoningSelect(discord.ui.Select):
@@ -349,29 +387,55 @@ class ReasoningSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         await set_user_ai_param(self.user_id, "reasoning", self.values[0])
-        await interaction.response.defer()
+        for opt in self.options:
+            opt.default = opt.value == self.values[0]
+        await self.view.refresh_embed(interaction)
 
 
 class ToolingSelect(discord.ui.Select):
     def __init__(self, user_id, current_val):
-        options = [
-            discord.SelectOption(
-                label="Auto", value="Auto", description="Urch decides when to use tools"
-            ),
-            discord.SelectOption(label="True", value="True", description="Urch always uses tools"),
-            discord.SelectOption(label="False", value="False", description="Urch never uses tools"),
-        ]
+        if current_val in ("Auto", "True", "all", None, ""):
+            enabled_set = {tool_key for tool_key, _, _ in AVAILABLE_TOOLS}
+        elif current_val in ("False", "none"):
+            enabled_set = set()
+        elif isinstance(current_val, list):
+            enabled_set = set(current_val)
+        else:
+            enabled_set = {x.strip() for x in str(current_val).split(",") if x.strip()}
 
-        for opt in options:
-            if opt.value == str(current_val):
-                opt.default = True
+        options = []
+        for tool_key, label, desc in AVAILABLE_TOOLS:
+            options.append(
+                discord.SelectOption(
+                    label=label,
+                    value=tool_key,
+                    description=desc,
+                    default=(tool_key in enabled_set),
+                )
+            )
 
-        super().__init__(placeholder="Tooling", min_values=1, max_values=1, options=options, row=2)
+        super().__init__(
+            placeholder="Toggle Tools (Select tools to enable)",
+            min_values=0,
+            max_values=len(AVAILABLE_TOOLS),
+            options=options,
+            row=2,
+        )
         self.user_id = user_id
 
     async def callback(self, interaction: discord.Interaction):
-        await set_user_ai_param(self.user_id, "tooling", self.values[0])
-        await interaction.response.defer()
+        selected_tools = self.values
+        if not selected_tools:
+            tooling_str = "False"
+        elif len(selected_tools) == len(AVAILABLE_TOOLS):
+            tooling_str = "Auto"
+        else:
+            tooling_str = ",".join(selected_tools)
+
+        await set_user_ai_param(self.user_id, "tooling", tooling_str)
+        for opt in self.options:
+            opt.default = opt.value in selected_tools
+        await self.view.refresh_embed(interaction)
 
 
 class AdvancedSettingsView(discord.ui.View):
@@ -379,10 +443,29 @@ class AdvancedSettingsView(discord.ui.View):
         super().__init__(timeout=300)
         self.user_id = user_id
         self.bot = bot
+        self.parent_view = parent_view
 
-        self.add_item(ModelSelect(user_id, params.get("model", "Auto")))
-        self.add_item(ReasoningSelect(user_id, params.get("reasoning", "none")))
-        self.add_item(ToolingSelect(user_id, params.get("tooling", "Auto")))
+        current_model = params.get("model", "Auto")
+        chunks = get_model_page_data()
+        self.model_page = 0
+        if current_model != "Auto":
+            for idx, chunk in enumerate(chunks):
+                if any(key == current_model for key, _ in chunk):
+                    self.model_page = idx
+                    break
+
+        self.rebuild_components(params)
+
+    def rebuild_components(self, params):
+        self.clear_items()
+        chunks = get_model_page_data()
+        self.model_page = max(0, min(self.model_page, len(chunks) - 1))
+
+        self.add_item(
+            ModelSelect(self.user_id, params.get("model", "Auto"), page=self.model_page)
+        )
+        self.add_item(ReasoningSelect(self.user_id, params.get("reasoning", "none")))
+        self.add_item(ToolingSelect(self.user_id, params.get("tooling", "Auto")))
 
         num_btn = discord.ui.Button(
             label="Parameters", style=discord.ButtonStyle.primary, emoji="🔢", row=3
@@ -390,32 +473,61 @@ class AdvancedSettingsView(discord.ui.View):
         num_btn.callback = self.numeric_callback
         self.add_item(num_btn)
 
+        if len(chunks) > 1:
+            page_btn = discord.ui.Button(
+                label=f"Models ({self.model_page + 1}/{len(chunks)})",
+                style=discord.ButtonStyle.secondary,
+                emoji="🔄",
+                row=3,
+            )
+            page_btn.callback = self.page_callback
+            self.add_item(page_btn)
+
         back_btn = discord.ui.Button(
             label="Back", style=discord.ButtonStyle.secondary, emoji="◀", row=3
         )
         back_btn.callback = self.back_callback
         self.add_item(back_btn)
 
-    async def refresh_embed(self, interaction: discord.Interaction):
-        user_params = await get_user_ai_params(self.user_id)
+    async def page_callback(self, interaction: discord.Interaction):
+        chunks = get_model_page_data()
+        self.model_page = (self.model_page + 1) % len(chunks)
+        await self.refresh_embed(interaction)
 
+    def build_embed(self, user_params: dict) -> discord.Embed:
         desc = "## Current Configuration\n"
         model_key = user_params.get("model", "Auto")
         model_disp = (
             MODEL_LIST.get(model_key, {}).get("disp", model_key) if model_key != "Auto" else "Auto"
         )
 
+        tooling_val = user_params.get("tooling", "Auto")
+        if tooling_val in ("Auto", "True", "all"):
+            tooling_disp = f"All enabled ({len(AVAILABLE_TOOLS)}/{len(AVAILABLE_TOOLS)})"
+        elif tooling_val in ("False", "", "none"):
+            tooling_disp = "None (Disabled)"
+        else:
+            enabled = [x.strip() for x in str(tooling_val).split(",") if x.strip()]
+            tooling_disp = f"{len(enabled)}/{len(AVAILABLE_TOOLS)} enabled ({', '.join(enabled)})"
+
         desc += f"**Model:** {model_disp}\n"
         desc += f"**Reasoning:** {user_params.get('reasoning', 'none')}\n"
-        desc += f"**Tooling:** {user_params.get('tooling', 'Auto')}\n"
+        desc += f"**Tooling:** {tooling_disp}\n"
         desc += f"**Temperature:** {user_params.get('temperature', 0.7)}\n"
         desc += f"**Max Tokens:** {user_params.get('max_completion_tokens', 1000)}\n"
 
-        embed = discord.Embed(
+        return discord.Embed(
             title="🔧 Advanced Settings", description=desc, color=discord.Color.dark_grey()
         )
 
-        await interaction.response.edit_message(embed=embed, view=self)
+    async def refresh_embed(self, interaction: discord.Interaction):
+        user_params = await get_user_ai_params(self.user_id)
+        self.rebuild_components(user_params)
+        embed = self.build_embed(user_params)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
 
     async def numeric_callback(self, interaction: discord.Interaction):
         params = await get_user_ai_params(self.user_id)

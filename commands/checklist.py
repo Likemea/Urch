@@ -15,7 +15,7 @@ class ChecklistView(discord.ui.View):
         super().__init__(timeout=180)
         self.user_id = str(user_id)
         self.rarity_names = [r[0] for r in RARITIES]
-        self.discovered = discovered
+        self.discovered = discovered or {}
         self.page = 0
         self.total = len(self.rarity_names)
         self.update_buttons()
@@ -76,7 +76,7 @@ class ChecklistCommand(commands.Cog):
     async def checklist(self, interaction: discord.Interaction):
         uid = str(interaction.user.id)
         user = await ensure_user(uid)
-        discovered = user.get("discovered", {})
+        discovered = user.get("discovered") or {}
 
         view = ChecklistView(uid, discovered)
         embed = view.format_page_embed()

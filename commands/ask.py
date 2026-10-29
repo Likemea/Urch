@@ -8,6 +8,7 @@ import aiohttp
 from discord import app_commands
 from discord.ext import commands
 import config
+from providers import get_session
 
 POLLINATIONS_API_KEY = config.POLLINATIONS_API_KEY
 POLLINATIONS_API_URL = "https://gen.pollinations.ai/v1/chat/completions"
@@ -35,20 +36,23 @@ async def generate_response(prompt, user_id):
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                POLLINATIONS_API_URL,
-                headers=HEADERS_POLLINATIONS,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=20),
-            ) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                response = data["choices"][0]["message"]["content"].strip()
-                print(response)
-                return response
+        session = await get_session()
+        async with session.post(
+            POLLINATIONS_API_URL,
+            headers=HEADERS_POLLINATIONS,
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=20),
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            response = data["choices"][0]["message"]["content"].strip()
+            print(response)
+            return response
     except Exception as e:
         return f"⚠️ Unexpected error: {str(e)}"
+
+
+from safeguard import check_safeguard
 
 
 class AskCommand(commands.Cog):
@@ -59,14 +63,41 @@ class AskCommand(commands.Cog):
     @app_commands.describe(prompt="Your prompt")
     async def prompt(self, interaction: discord.Interaction, prompt: str):
         user_id = str(interaction.user.id)
+        rl = getattr(self.bot, "rate_limiter", None)
+        if rl:
+            allowed, wait_time, reason = rl.check(
+                user_id, model_id="community/ZapGaming/llama3.1-8b-xturbo"
+            )
+            if not allowed:
+                msg = (
+                    reason
+                    if wait_time <= 0
+                    else f"⏳ Slow down! {reason} Try again in {wait_time:.1f}s."
+                )
+                await interaction.response.send_message(msg, ephemeral=True)
+                return
+
         await interaction.response.defer(thinking=True)
         response = await generate_response(prompt, user_id)
 
+        safeguard_func = getattr(self.bot, "check_safeguard", check_safeguard)
+        safeguard_result = await safeguard_func([], prompt, response)
+        verdict = safeguard_result.get("verdict", "safe").lower()
+        if verdict in ["unsafe_input", "unsafe_output", "unsafe_both"]:
+            reason = safeguard_result.get("reasoning", "No specific reason provided.")
+            policy = safeguard_result.get("violated_policy", "General Safety Policy")
+            msg = (
+                f"🛡️ **Safeguard Block ({verdict})**\n"
+                f"- **Reason**: {reason}\n"
+                f"- **Violated Policy**: {policy}"
+            )
+            await interaction.followup.send(msg)
+            return
+
         if len(response) > 1900:
             chunks = [response[i : i + 1900] for i in range(0, len(response), 1900)]
-            await interaction.followup.send(chunks[0])
-            for chunk in chunks[1:]:
-                await interaction.channel.send(chunk)
+            for chunk in chunks:
+                await interaction.followup.send(chunk)
         else:
             await interaction.followup.send(response)
 

@@ -5,6 +5,7 @@ from discord.ext import commands
 
 from functions.image_gen import generate_image
 from providers import IMAGE_MODELS
+from safeguard import check_safeguard
 
 
 class Txt2ImgCommand(commands.Cog):
@@ -44,7 +45,36 @@ class Txt2ImgCommand(commands.Cog):
         enhance: bool = False,
         quality: str = "low",
     ):
+        rl = getattr(self.bot, "rate_limiter", None)
+        if rl:
+            allowed, wait_time, reason = rl.check(str(interaction.user.id), tier="medium")
+            if not allowed:
+                msg = (
+                    reason
+                    if wait_time <= 0
+                    else f"⏳ Slow down! {reason} Try again in {wait_time:.1f}s."
+                )
+                await interaction.response.send_message(msg, ephemeral=True)
+                return
+
         await interaction.response.defer(thinking=True)
+
+        safeguard_func = getattr(self.bot, "check_safeguard", check_safeguard)
+        try:
+            safeguard_result = await safeguard_func([], prompt, "")
+            verdict = safeguard_result.get("verdict", "safe").lower()
+            if verdict in ["unsafe_input", "unsafe_output", "unsafe_both"]:
+                reason = safeguard_result.get("reasoning", "No specific reason provided.")
+                policy = safeguard_result.get("violated_policy", "General Safety Policy")
+                msg = (
+                    f"🛡️ **Safeguard Block ({verdict})**\n"
+                    f"- **Reason**: {reason}\n"
+                    f"- **Violated Policy**: {policy}"
+                )
+                await interaction.followup.send(msg)
+                return
+        except Exception as e:
+            print(f"[txt2img] Safeguard check error: {e}")
 
         try:
             gen_kwargs = {"seed": seed, "enhance": enhance}

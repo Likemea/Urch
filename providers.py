@@ -363,13 +363,17 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
     if clean.get("tools"):
         clean.pop("response_format", None)
 
-    if clean.get("reasoning_effort") == "Auto":
+    if clean.get("reasoning_effort") in ("Auto", "auto"):
         clean.pop("reasoning_effort", None)
 
-    # sanitize message history based on tool capability
+    if clean.get("model") in ["openai/gpt-oss-20b", "openai/gpt-oss-120b"] and clean.get("reasoning_effort") == "none":
+        clean.pop("reasoning_effort", None)
+
+    # sanitize message history based on tool & vision capability
     if "messages" in clean and isinstance(clean["messages"], list):
         sanitized_messages = []
         supports_tools = caps.get("tools", False)
+        supports_vision = caps.get("vision", False)
         for msg in clean["messages"]:
             if not isinstance(msg, dict):
                 sanitized_messages.append(msg)
@@ -377,6 +381,31 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
 
             msg_copy = dict(msg)
             role = msg_copy.get("role")
+
+            if not supports_vision and isinstance(msg_copy.get("content"), list):
+                text_pieces = []
+                for part in msg_copy["content"]:
+                    if isinstance(part, dict):
+                        if part.get("type") == "text":
+                            txt = part.get("text", "")
+                            if txt:
+                                text_pieces.append(txt)
+                        elif part.get("type") == "image_url" or "image_url" in part:
+                            img_info = part.get("image_url", {})
+                            url = (
+                                img_info.get("url")
+                                if isinstance(img_info, dict)
+                                else str(img_info)
+                            )
+                            if url:
+                                text_pieces.append(f"[Image: {url}]")
+                            else:
+                                text_pieces.append("[Image attached]")
+                        elif "text" in part:
+                            text_pieces.append(str(part["text"]))
+                    elif isinstance(part, str):
+                        text_pieces.append(part)
+                msg_copy["content"] = "\n".join(text_pieces) if text_pieces else ""
 
             if not supports_tools:
                 # if model doesn't support tools, convert tool output messages to user role
@@ -606,6 +635,7 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
 
     # stage 1 - normal
     success = False
+    yielded_any = False
     for attempt in range(retries):
         try:
             async with session.post(
@@ -616,6 +646,7 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
                     raise ProviderClientError(resp.status, body)
                 resp.raise_for_status()
                 async for chunk in consume_stream(resp):
+                    yielded_any = True
                     yield chunk
                 success = True
                 return
@@ -623,14 +654,18 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
             print(
                 f"[Provider:Stream] 4xx Client Error ({pce.status}) on attempt {attempt + 1}/{retries}: {pce.message}"
             )
+            if yielded_any:
+                return
             break
         except Exception as e:
             print(f"[Provider:Stream] Attempt {attempt + 1}/{retries} failed: {e}")
+            if yielded_any:
+                return
             if attempt < retries - 1:
                 await asyncio.sleep(2 + attempt * 2)
 
     # stage 2 - no params
-    if not success:
+    if not success and not yielded_any:
         print(f"[Provider:Stream] Retrying {model_info['id']} with stripped parameters...")
         stripped_payload = dict(payload)
         for k in ["temperature", "top_p", "reasoning_effort", "max_completion_tokens"]:
@@ -649,14 +684,17 @@ async def call_provider_stream(model_key: str, payload: dict, retries: int = 2):
                     raise ProviderClientError(resp.status, body)
                 resp.raise_for_status()
                 async for chunk in consume_stream(resp):
+                    yielded_any = True
                     yield chunk
                 success = True
                 return
         except Exception as e:
             print(f"[Provider:Stream] Stripped parameters retry failed for {model_info['id']}: {e}")
+            if yielded_any:
+                return
 
     # stage 3 - fallback
-    if not success:
+    if not success and not yielded_any:
         fallback = MODELS[FALLBACK_MODEL_KEY]
         print(f"⚠️ [Provider:Stream] Falling back to {fallback['id']}")
         fallback_payload = sanitize_payload(

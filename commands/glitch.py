@@ -1,4 +1,5 @@
 # Urch/commands/glitch.py
+import asyncio
 import io
 import random
 import discord
@@ -6,6 +7,107 @@ import numpy as np
 from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageEnhance
+
+MAX_FILE_SIZE = 8 * 1024 * 1024  # 8 MB
+MAX_DIMENSION = 1024
+MAX_FRAMES = 40
+
+
+def apply_glitch(img: Image.Image, intensity: float) -> Image.Image:
+    w, h = img.size
+    np_img = np.array(img)
+    if random.random() < 0.8:
+        shift_x = int((random.randint(-5, 5) * intensity))
+        shift_y = int((random.randint(-3, 3) * intensity))
+        r = np.roll(np_img[:, :, 0], shift=(shift_y, shift_x), axis=(0, 1))
+        g = np_img[:, :, 1]
+        b = np.roll(np_img[:, :, 2], shift=(-shift_y, -shift_x), axis=(0, 1))
+        np_img = np.stack([r, g, b], axis=2)
+    if random.random() < 0.6:
+        scanline = np.zeros_like(np_img)
+        scanline[::2] = np_img[::2]
+        np_img = (np_img * 0.7 + scanline * 0.3).astype(np.uint8)
+    if random.random() < 0.5 * intensity:
+        try:
+            axis = random.choice([0, 1])
+            idx = random.randint(0, h - 1 if axis == 1 else w - 1)
+            region_size = max(1, int(20 * intensity))
+            if axis == 1:
+                start = max(0, idx - region_size // 2)
+                end = min(h, idx + region_size // 2)
+                strip = np_img[start:end, :, :]
+                brightness = np.mean(strip, axis=2)
+                for y in range(strip.shape[0]):
+                    order = np.argsort(brightness[y])
+                    if random.random() < 0.5:
+                        order = order[::-1]
+                    strip[y] = strip[y][order]
+                np_img[start:end, :, :] = strip
+        except Exception:
+            pass
+    pil_img = Image.fromarray(np_img)
+    if random.random() < 0.4:
+        enhancer = ImageEnhance.Contrast(pil_img)
+        pil_img = enhancer.enhance(1 + 0.5 * intensity * random.choice([-1, 1]))
+    if random.random() < 0.3:
+        enhancer = ImageEnhance.Brightness(pil_img)
+        pil_img = enhancer.enhance(1 + 0.4 * intensity * random.choice([-1, 1]))
+    if intensity > 0.7 and random.random() < 0.3:
+        noise = np.random.randint(0, 256, np_img.shape, dtype=np.uint8)
+        mask = np.random.rand(*np_img.shape[:2]) < (0.02 * intensity)
+        noisy = np.where(mask[..., None], noise, np.array(pil_img))
+        pil_img = Image.fromarray(noisy.astype(np.uint8))
+    return pil_img
+
+
+def process_glitch(img_data: bytes, is_gif: bool, intensity: int) -> bytes:
+    raw_image = Image.open(io.BytesIO(img_data))
+    frames = []
+    durations = []
+
+    if is_gif:
+        try:
+            for idx in range(MAX_FRAMES):
+                raw_image.seek(idx)
+                f = raw_image.convert("RGB")
+                if f.width > MAX_DIMENSION or f.height > MAX_DIMENSION:
+                    f.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.Resampling.LANCZOS)
+                frames.append(f)
+                dur = raw_image.info.get("duration", 150)
+                durations.append(dur if dur > 0 else 150)
+        except EOFError:
+            pass
+        if not frames:
+            f = raw_image.convert("RGB")
+            if f.width > MAX_DIMENSION or f.height > MAX_DIMENSION:
+                f.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.Resampling.LANCZOS)
+            frames = [f]
+            durations = [150]
+    else:
+        f = raw_image.convert("RGB")
+        if f.width > MAX_DIMENSION or f.height > MAX_DIMENSION:
+            f.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.Resampling.LANCZOS)
+        frames = [f]
+        durations = [250]
+
+    glitched_frames = []
+    glitch_intensity = intensity / 10.0
+    for i, frame in enumerate(frames):
+        local_intensity = glitch_intensity * (0.8 + 0.4 * (i % 3) / 2)
+        glitched = apply_glitch(frame, local_intensity)
+        glitched_frames.append(glitched)
+
+    output = io.BytesIO()
+    glitched_frames[0].save(
+        output,
+        format="GIF",
+        save_all=True,
+        append_images=glitched_frames[1:],
+        duration=durations[0] if is_gif else 250,
+        loop=0,
+        disposal=2,
+    )
+    return output.getvalue()
 
 
 class GlitchCommand(commands.Cog):
@@ -25,8 +127,9 @@ class GlitchCommand(commands.Cog):
             await interaction.followup.send("Intensity must be between 1 and 10", ephemeral=True)
             return
 
+        content_type = image.content_type or ""
         if not (
-            image.content_type.startswith("image")
+            content_type.startswith("image")
             or image.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
         ):
             await interaction.followup.send(
@@ -34,94 +137,31 @@ class GlitchCommand(commands.Cog):
             )
             return
 
-        try:
-            img_data = await image.read()
-            input_image = Image.open(io.BytesIO(img_data)).convert("RGB")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Failed to load image: {e}", ephemeral=True)
+        if image.size and image.size > MAX_FILE_SIZE:
+            await interaction.followup.send(
+                "❌ File size exceeds the 8MB limit.", ephemeral=True
+            )
             return
 
         is_gif = image.filename.lower().endswith(".gif")
-        if is_gif:
-            frames = []
-            try:
-                input_image.seek(0)
-                while True:
-                    frames.append(input_image.copy().convert("RGB"))
-                    input_image.seek(input_image.tell() + 1)
-            except EOFError:
-                pass
-            if len(frames) == 0:
-                frames = [input_image]
-        else:
-            frames = [input_image]
+        try:
+            img_data = await image.read()
+            if len(img_data) > MAX_FILE_SIZE:
+                await interaction.followup.send(
+                    "❌ File size exceeds the 8MB limit.", ephemeral=True
+                )
+                return
+            output_bytes = await asyncio.to_thread(process_glitch, img_data, is_gif, intensity)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed to process image: {e}", ephemeral=True)
+            return
 
-        glitched_frames = []
-        glitch_intensity = intensity / 10.0
-        for i, frame in enumerate(frames):
-            local_intensity = glitch_intensity * (0.8 + 0.4 * (i % 3) / 2)
-            glitched = self.apply_glitch(frame, local_intensity)
-            glitched_frames.append(glitched)
-
-        with io.BytesIO() as output:
-            glitched_frames[0].save(
-                output,
-                format="GIF",
-                save_all=True,
-                append_images=glitched_frames[1:],
-                duration=150 if is_gif else 250,
-                loop=0,
-                disposal=2,
-            )
-            output.seek(0)
+        with io.BytesIO(output_bytes) as output:
             filename = f"glitched_{'gif' if is_gif else 'img'}_lvl{intensity}.gif"
-            await interaction.followup.send(f"", file=discord.File(output, filename=filename))
+            await interaction.followup.send(file=discord.File(output, filename=filename))
 
     def apply_glitch(self, img: Image.Image, intensity: float) -> Image.Image:
-        w, h = img.size
-        np_img = np.array(img)
-        if random.random() < 0.8:
-            shift_x = int((random.randint(-5, 5) * intensity))
-            shift_y = int((random.randint(-3, 3) * intensity))
-            r = np.roll(np_img[:, :, 0], shift=(shift_y, shift_x), axis=(0, 1))
-            g = np_img[:, :, 1]
-            b = np.roll(np_img[:, :, 2], shift=(-shift_y, -shift_x), axis=(0, 1))
-            np_img = np.stack([r, g, b], axis=2)
-        if random.random() < 0.6:
-            scanline = np.zeros_like(np_img)
-            scanline[::2] = np_img[::2]
-            np_img = (np_img * 0.7 + scanline * 0.3).astype(np.uint8)
-        if random.random() < 0.5 * intensity:
-            try:
-                axis = random.choice([0, 1])
-                idx = random.randint(0, h - 1 if axis == 1 else w - 1)
-                region_size = max(1, int(20 * intensity))
-                if axis == 1:
-                    start = max(0, idx - region_size // 2)
-                    end = min(h, idx + region_size // 2)
-                    strip = np_img[start:end, :, :]
-                    brightness = np.mean(strip, axis=2)
-                    for y in range(strip.shape[0]):
-                        order = np.argsort(brightness[y])
-                        if random.random() < 0.5:
-                            order = order[::-1]
-                        strip[y] = strip[y][order]
-                    np_img[start:end, :, :] = strip
-            except Exception:
-                pass
-        pil_img = Image.fromarray(np_img)
-        if random.random() < 0.4:
-            enhancer = ImageEnhance.Contrast(pil_img)
-            pil_img = enhancer.enhance(1 + 0.5 * intensity * random.choice([-1, 1]))
-        if random.random() < 0.3:
-            enhancer = ImageEnhance.Brightness(pil_img)
-            pil_img = enhancer.enhance(1 + 0.4 * intensity * random.choice([-1, 1]))
-        if intensity > 0.7 and random.random() < 0.3:
-            noise = np.random.randint(0, 256, np_img.shape, dtype=np.uint8)
-            mask = np.random.rand(*np_img.shape[:2]) < (0.02 * intensity)
-            noisy = np.where(mask[..., None], noise, np.array(pil_img))
-            pil_img = Image.fromarray(noisy.astype(np.uint8))
-        return pil_img
+        return apply_glitch(img, intensity)
 
 
 async def setup(bot):

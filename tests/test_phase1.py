@@ -41,6 +41,8 @@ def test_all_files_parse():
         "agent",
         "functions.tools_schema",
         "functions.dispatcher",
+        "functions.audio_gen",
+        "functions.forum_post",
     ],
 )
 def test_core_modules_import(module_name):

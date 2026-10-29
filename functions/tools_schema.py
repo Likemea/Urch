@@ -64,22 +64,66 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "generate_image",
-            "description": "Generate an image via Pollinations.ai based on a descriptive prompt.",
+            "name": "generate_media",
+            "description": "Generate media (image or audio) based on input specifications. When media_type is 'image', provide 'prompt' (and optionally 'model'). When media_type is 'audio', provide 'input' (and optionally 'voice' and 'speed').",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "media_type": {
+                        "type": "string",
+                        "enum": ["image", "audio"],
+                        "description": "The type of media to generate ('image' or 'audio').",
+                    },
                     "prompt": {
                         "type": "string",
-                        "description": "A detailed text prompt describing the image to generate.",
+                        "description": "A detailed text prompt describing the image to generate (required if media_type is 'image').",
+                    },
+                    "input": {
+                        "type": "string",
+                        "description": "The text to convert into speech/audio (required if media_type is 'audio').",
                     },
                     "model": {
                         "type": "string",
-                        "description": "Image model to use. Options: 'dreamshaper', 'flux'. Defaults to 'dreamshaper'.",
-                        "default": "dreamshaper",
+                        "description": "Model to use for image generation (e.g. 'dreamshaper', 'flux') or text-to-speech (defaults to 'openai/tts-1').",
+                    },
+                    "voice": {
+                        "type": "string",
+                        "description": "Voice for speech. (e.g. 'nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'). Defaults to 'nova'.",
+                        "default": "nova",
+                    },
+                    "speed": {
+                        "type": "number",
+                        "description": "Speaker speed. Minimum 0.25, maximum 4.0, default 1.0.",
+                        "default": 1.0,
                     },
                 },
-                "required": ["prompt"],
+                "required": ["media_type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "forum_post",
+            "description": "Create a new post in the #urch-bot forum channel for community assistance, bug reporting, or feature suggestions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the forum post.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Detailed body content/description of the forum post.",
+                    },
+                    "tag": {
+                        "type": "string",
+                        "enum": ["problem", "suggestion"],
+                        "description": "Optional category tag for the forum post ('problem' or 'suggestion').",
+                    },
+                },
+                "required": ["title", "description"],
             },
         },
     },

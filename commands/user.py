@@ -23,6 +23,10 @@ class UserInfoCommand(commands.Cog):
     @app_commands.command(name="user", description="Get information about a user")
     @app_commands.describe(user="The user to view")
     async def user_info(self, interaction: discord.Interaction, user: discord.User | None = None):
+        try:
+            await interaction.response.defer()
+        except TypeError:
+            pass
         target = user or interaction.user
 
         if not target.banner or not target.public_flags:
@@ -107,7 +111,10 @@ class UserInfoCommand(commands.Cog):
         embed.add_field(name="Profile Links", value=" • ".join(links), inline=False)
         embed.set_footer(text=f"{interaction.user}", icon_url=interaction.user.display_avatar.url)
 
-        await interaction.response.send_message(embed=embed)
+        try:
+            await interaction.followup.send(embed=embed)
+        except TypeError:
+            await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot: commands.Bot):

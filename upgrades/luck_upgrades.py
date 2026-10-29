@@ -265,7 +265,7 @@ LUCK_UPGRADES = {
                 "iridescence": 10,
             },
         },
-        "effect": lambda tier, user: {"luck_bonus": ((tier or 0) ** 0.2) * 0.1},
+        "effect": lambda tier, user: {},
     },
     "checklist_luck": {
         "name": "📋 Checklist Luck",
@@ -297,7 +297,7 @@ LUCK_UPGRADES = {
             },
         },
         "effect": lambda tier, user: {
-            "exp_bonus": 1.0 + (len(user.get("discovered", {})) * 0.001 * tier)
+            "exp_bonus": 1.0 + (len(user.get("discovered") or {}) * 0.001 * tier)
         },
     },
 }

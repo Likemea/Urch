@@ -7,7 +7,7 @@ Per-user token bucket rate limiter with dynamic global scaling.
 """
 
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 
 # ───────────────────────────────
 # MODEL TIERS
@@ -52,19 +52,23 @@ DEFAULT_TIER_LIMITS = {
 class UserBucket:
     """Tracks a single user's request timestamps for RPS/RPM enforcement."""
 
-    __slots__ = ("timestamps",)
+    __slots__ = ("timestamps", "last_active")
 
-    def __init__(self):
+    def __init__(self, now: float = None):
         self.timestamps: list[float] = []
+        self.last_active: float = now if now is not None else time.time()
 
     def _cleanup(self, now: float):
         """Remove timestamps older than 60 seconds."""
         cutoff = now - 60.0
         self.timestamps = [t for t in self.timestamps if t > cutoff]
 
-    def check(self, now: float, rps: float, rpm: int) -> tuple[bool, float, str]:
+    def check(
+        self, now: float, rps: float, rpm: int, consume: bool = True
+    ) -> tuple[bool, float, str]:
         """
         Check if a request is allowed.
+        If consume is False, the request is not recorded (peek only).
         Returns: (allowed, wait_seconds, reason)
         """
         self._cleanup(now)
@@ -82,7 +86,9 @@ class UserBucket:
                 wait = min_interval - elapsed
                 return False, max(0.1, wait), f"Max {rps:.1f} requests/second."
 
-        self.timestamps.append(now)
+        if consume:
+            self.timestamps.append(now)
+            self.last_active = now
         return True, 0.0, ""
 
     def request_count_last_minute(self, now: float) -> int:
@@ -111,13 +117,78 @@ class RateLimiter:
         self.total_denied = 0
         self.start_time = time.time()
 
+        # O(1) amortized active user tracking
+        self._active_events: deque[tuple[float, str]] = deque()
+        self._active_user_counts: dict[str, int] = {}
+
+        # Periodic inactive user eviction (prune users inactive for > 10m)
+        self.prune_interval = 60.0
+        self.prune_idle_threshold = 600.0
+        self._last_prune_time = self.start_time
+
     @property
     def uptime_seconds(self) -> float:
         return time.time() - self.start_time
 
+    def _cleanup_active(self, now: float):
+        """Remove events older than 60 seconds from the active window."""
+        cutoff = now - 60.0
+        while self._active_events and self._active_events[0][0] <= cutoff:
+            _, uid = self._active_events.popleft()
+            cnt = self._active_user_counts.get(uid, 0)
+            if cnt > 1:
+                self._active_user_counts[uid] = cnt - 1
+            elif cnt == 1:
+                del self._active_user_counts[uid]
+
+    def _record_active(self, user_id: str, now: float):
+        """Record an allowed consumed request in the active window."""
+        self._active_events.append((now, user_id))
+        self._active_user_counts[user_id] = self._active_user_counts.get(user_id, 0) + 1
+
+    def _rebuild_active_tracking(self, now: float):
+        """Rebuild active window from user buckets if clock moved backwards."""
+        self._active_events.clear()
+        self._active_user_counts.clear()
+        cutoff = now - 60.0
+        events = []
+        for uid, b in self.users.items():
+            for ts in b.timestamps:
+                if ts > cutoff:
+                    events.append((ts, uid))
+        events.sort()
+        for ts, uid in events:
+            self._active_events.append((ts, uid))
+            self._active_user_counts[uid] = self._active_user_counts.get(uid, 0) + 1
+
     def _get_active_users(self, now: float) -> int:
-        """Count users with activity in the last 60 seconds."""
-        return sum(1 for b in self.users.values() if b.request_count_last_minute(now) > 0)
+        """Count users with activity in the last 60 seconds in O(1) amortized time."""
+        if not self.users:
+            self._active_events.clear()
+            self._active_user_counts.clear()
+            return 0
+        if self._active_events and self._active_events[-1][0] > now:
+            self._rebuild_active_tracking(now)
+        else:
+            self._cleanup_active(now)
+        return len(self._active_user_counts)
+
+    def prune_inactive(self, now: float = None, max_idle: float = None) -> int:
+        """
+        Periodically evict inactive users from self.users so memory does not grow unbounded.
+        Prunes buckets with no requests in the last max_idle seconds (default: 600s / 10 minutes).
+        """
+        if now is None:
+            now = time.time()
+        if max_idle is None:
+            max_idle = self.prune_idle_threshold
+        cutoff = now - max_idle
+        stale = [uid for uid, b in self.users.items() if b.last_active < cutoff]
+        for uid in stale:
+            del self.users[uid]
+            self._active_user_counts.pop(uid, None)
+        self._last_prune_time = now
+        return len(stale)
 
     def _get_dynamic_multiplier(self, now: float) -> float:
         """Calculate the dynamic multiplier based on current usage."""
@@ -143,9 +214,13 @@ class RateLimiter:
                 return tier_key
         return "medium"
 
-    def check(self, user_id: str, model_id: str = None) -> tuple[bool, float, str]:
+    def check(
+        self, user_id: str, model_id: str = None, tier: str = None, consume: bool = True
+    ) -> tuple[bool, float, str]:
         """
         Main entry point: check if user_id is allowed to make a request.
+        `tier` overrides the model lookup. With consume=False the request is
+        not recorded and stats are untouched (use for pre-gating).
         Returns: (allowed, wait_seconds, reason)
         """
         if self.kill_switch:
@@ -155,22 +230,35 @@ class RateLimiter:
             return True, 0.0, ""
 
         now = time.time()
-        self.total_requests += 1
+        if now - self._last_prune_time >= self.prune_interval:
+            self.prune_inactive(now)
 
-        tier_key = self._get_tier_for_model(model_id) if model_id else "medium"
-        tier = self.tier_limits.get(tier_key, self.tier_limits["medium"])
+        if consume:
+            self.total_requests += 1
+
+        if tier is None:
+            tier = self._get_tier_for_model(model_id) if model_id else "medium"
+        tier_cfg = self.tier_limits.get(tier, self.tier_limits["medium"])
 
         multiplier = self._get_dynamic_multiplier(now)
-        effective_rps = tier["rps"] * multiplier
-        effective_rpm = max(1, int(tier["rpm"] * multiplier))
+        effective_rps = tier_cfg["rps"] * multiplier
+        effective_rpm = max(1, int(tier_cfg["rpm"] * multiplier))
 
         bucket = self.users[user_id]
-        allowed, wait, reason = bucket.check(now, effective_rps, effective_rpm)
+        allowed, wait, reason = bucket.check(now, effective_rps, effective_rpm, consume=consume)
 
-        if not allowed:
+        if allowed and consume:
+            self._record_active(user_id, now)
+
+        if not allowed and consume:
             self.total_denied += 1
 
         return allowed, wait, reason
+
+    def peek(self, user_id: str, tier: str = "light") -> tuple[bool, float, str]:
+        """Non-consuming pre-check against the most lenient tier by default.
+        If this fails, the request would fail for every tier."""
+        return self.check(user_id, tier=tier, consume=False)
 
     def get_stats(self) -> dict:
         """Return stats for the /safety dashboard."""
@@ -212,6 +300,35 @@ class RateLimiter:
         """Reset a user's rate limit bucket."""
         if user_id in self.users:
             del self.users[user_id]
+        if user_id in self._active_user_counts:
+            del self._active_user_counts[user_id]
+
+    def benchmark(self, user_count: int = 5000, check_count: int = 1000) -> float:
+        """
+        Benchmark average check latency in milliseconds with a given number of users.
+
+        >>> rl = RateLimiter()
+        >>> ms_5k = rl.benchmark(user_count=5000, check_count=500)
+        >>> ms_5k < 1.0
+        True
+        >>> ms_10k = rl.benchmark(user_count=10000, check_count=500)
+        >>> ms_10k < 1.0
+        True
+        >>> evicted = rl.prune_inactive(max_idle=60.0)
+        >>> evicted >= 10000
+        True
+        """
+        now = time.time()
+        for i in range(user_count):
+            self.users[f"bench_user_{i}"] = UserBucket(now=now - 120.0)
+
+        t0 = time.perf_counter()
+        for i in range(check_count):
+            self.check(f"active_user_{i % 50}", consume=True)
+        t1 = time.perf_counter()
+
+        avg_ms = ((t1 - t0) / check_count) * 1000.0
+        return avg_ms
 
 
 rate_limiter = RateLimiter()

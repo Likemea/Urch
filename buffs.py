@@ -5,6 +5,10 @@ from utils import currency_count, currency_remove, currency_add
 from recipes import POTION_RECIPES
 
 
+MAX_POTION_DURATION = 86400  # 24 hours max active duration
+MAX_POTION_CHARGES = 1000
+
+
 async def apply_potion_craft(user_id: str, potion_id: str, amount: int = 1) -> bool:
     """Grants potion charges or updates expiration timestamp on craft with multi-craft support."""
     recipe = POTION_RECIPES.get(potion_id)
@@ -16,17 +20,22 @@ async def apply_potion_craft(user_id: str, potion_id: str, amount: int = 1) -> b
 
     if buff["type"] == "charges":
         key = f"potion_charge_{potion_id}"
-        await currency_add(user_id, key, buff["charges"] * amount)
+        current = await currency_count(user_id, key)
+        new_charges = min(MAX_POTION_CHARGES, current + (buff["charges"] * amount))
+        added = new_charges - current
+        if added > 0:
+            await currency_add(user_id, key, added)
     elif buff["type"] == "duration":
         key = f"potion_exp_{potion_id}"
         stored_exp = await currency_count(user_id, key)
 
-        if stored_exp > now + 86400 or (0 < stored_exp <= now):
+        if 0 < stored_exp <= now:
             await currency_remove(user_id, key, stored_exp)
             stored_exp = 0
 
         base_exp = max(now, stored_exp)
-        new_exp = base_exp + (buff["duration_seconds"] * amount)
+        dur_to_add = buff["duration_seconds"] * amount
+        new_exp = min(now + MAX_POTION_DURATION, base_exp + dur_to_add)
 
         if stored_exp > 0:
             await currency_remove(user_id, key, stored_exp)
@@ -53,17 +62,15 @@ async def evaluate_active_buffs(user_id: str, context: str) -> Dict[str, Any]:
 
         if buff["type"] == "charges":
             key = f"potion_charge_{p_id}"
-            count = await currency_count(user_id, key)
-            if count > 0:
-                is_active = True
-                await currency_remove(user_id, key, 1)
+            is_active = await currency_remove(user_id, key, 1)
 
         elif buff["type"] == "duration":
             key = f"potion_exp_{p_id}"
             exp_time = await currency_count(user_id, key)
-            if exp_time > now + 86400:
+            if exp_time > now + MAX_POTION_DURATION:
+                # Clamp to max allowed duration rather than wiping out to 1 potion
                 await currency_remove(user_id, key, exp_time)
-                exp_time = now + buff.get("duration_seconds", 300)
+                exp_time = now + MAX_POTION_DURATION
                 await currency_add(user_id, key, exp_time)
 
             if exp_time > now:

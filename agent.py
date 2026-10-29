@@ -1,5 +1,6 @@
 # Urch/agent.py
 
+import json
 import time
 import uuid
 import discord
@@ -24,8 +25,10 @@ def _format_status_for_tools(tool_names: list[str]) -> str:
             parts.append("🌐 Reading page")
         elif name == "execute_code":
             parts.append("🐍 Running script")
-        elif name == "generate_image":
-            parts.append("🎨 Generating image")
+        elif name in ["generate_media", "generate_image", "generate_audio"]:
+            parts.append("🎨 Generating media")
+        elif name == "forum_post":
+            parts.append("📌 Creating forum post")
         else:
             parts.append(f"🛠️ Executing {name}")
 
@@ -88,6 +91,7 @@ async def run_agent_loop(
     base_messages: list,
     user_params: dict,
     status_message: Optional[discord.Message] = None,
+    bot: Optional[discord.Client] = None,
 ) -> dict:
     """
     Executes a loop
@@ -99,7 +103,19 @@ async def run_agent_loop(
     model_used = model_info["id"]
 
     tooling_setting = user_params.get("tooling", "Auto")
-    supports_tools = bool(model_info.get("tools", False)) and (tooling_setting != "False")
+    if tooling_setting in ("False", "", "none"):
+        active_tools = []
+    elif tooling_setting in ("Auto", "True", "all"):
+        active_tools = list(AGENT_TOOLS)
+    elif isinstance(tooling_setting, list):
+        active_tools = [t for t in AGENT_TOOLS if t["function"]["name"] in tooling_setting]
+    elif isinstance(tooling_setting, str):
+        enabled_names = {x.strip() for x in tooling_setting.split(",") if x.strip()}
+        active_tools = [t for t in AGENT_TOOLS if t["function"]["name"] in enabled_names]
+    else:
+        active_tools = list(AGENT_TOOLS)
+
+    supports_tools = bool(model_info.get("tools", False)) and bool(active_tools)
 
     messages = [dict(m) if isinstance(m, dict) else m for m in base_messages]
 
@@ -111,14 +127,22 @@ async def run_agent_loop(
     }
 
     reasoning_val = user_params.get("reasoning", "none")
-    if reasoning_val != "none" and model_info.get("reasoning_effort"):
-        payload["reasoning_effort"] = reasoning_val
+    if model_info.get("reasoning_effort"):
+        if model_info.get("id") in ["openai/gpt-oss-20b", "openai/gpt-oss-120b"] and reasoning_val == "none":
+            # Groq's gpt-oss models only accept low/medium/high and reject "none"
+            pass
+        else:
+            payload["reasoning_effort"] = reasoning_val
 
     if supports_tools:
-        payload["tools"] = AGENT_TOOLS
+        payload["tools"] = active_tools
         payload["tool_choice"] = "auto"
 
-    context = {"files": []}
+    allowed_tool_names = {
+        t["function"]["name"] for t in active_tools if isinstance(t, dict) and "function" in t
+    }
+
+    context = {"files": [], "bot": bot, "user_id": user_params.get("user_id")}
     final_text = ""
     terminated_normally = False
 
@@ -170,8 +194,17 @@ async def run_agent_loop(
             fn_name = fn_info.get("name", "")
             fn_args = fn_info.get("arguments", "{}")
 
-            print(f"[Agent] Step {step + 1} invoking tool: {fn_name}({fn_args[:100]}...)")
-            tool_output, _ = await dispatch_tool_call(fn_name, fn_args, context)
+            fn_args_str = (
+                json.dumps(fn_args)
+                if isinstance(fn_args, dict)
+                else str(fn_args if fn_args is not None else "{}")
+            )
+            print(f"[Agent] Step {step + 1} invoking tool: {fn_name}({fn_args_str[:100]}...)")
+
+            if fn_name not in allowed_tool_names:
+                tool_output = f"Error: Tool '{fn_name}' is disabled or not available."
+            else:
+                tool_output, _ = await dispatch_tool_call(fn_name, fn_args, context)
 
             payload["messages"].append(
                 {

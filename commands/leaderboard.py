@@ -1,10 +1,12 @@
 # Urch/commands/leaderboard.py
+from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
 from typing import List
 
 from utils import get_upgrade_effect, format_number
+import database
 from database import db
 from raritylist import RARITIES
 
@@ -47,9 +49,10 @@ class LeaderboardView(discord.ui.View):
                         else discord.ButtonStyle.primary
                     )
 
-    async def update_buttons_async(self):
+    async def update_buttons_async(self, max_pages: Optional[int] = None):
         """Updates enabled/disabled state of pagination buttons"""
-        max_pages = await self.get_max_pages()
+        if max_pages is None:
+            max_pages = await self.get_max_pages()
         for child in self.children:
             if getattr(child, "label", "") == "◀":
                 child.disabled = max_pages <= 1
@@ -62,45 +65,55 @@ class LeaderboardView(discord.ui.View):
     async def show_luck(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.category = "luck"
         self.page = 0
-        await self.update_buttons_async()
-        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        data = await self.get_leaderboard_data()
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
+        await self.update_buttons_async(max_pages=max_pages)
+        await interaction.response.edit_message(embed=await self.format_page(data=data), view=self)
 
     @discord.ui.button(label="🎰 Most Rolls", style=discord.ButtonStyle.primary, row=0)
     async def show_rolls(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.category = "rolls"
         self.page = 0
-        await self.update_buttons_async()
-        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        data = await self.get_leaderboard_data()
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
+        await self.update_buttons_async(max_pages=max_pages)
+        await interaction.response.edit_message(embed=await self.format_page(data=data), view=self)
 
     @discord.ui.button(label="💎 Best Rarity", style=discord.ButtonStyle.primary, row=0)
     async def show_rarity(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.category = "rarity"
         self.page = 0
-        await self.update_buttons_async()
-        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        data = await self.get_leaderboard_data()
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
+        await self.update_buttons_async(max_pages=max_pages)
+        await interaction.response.edit_message(embed=await self.format_page(data=data), view=self)
 
     @discord.ui.button(label="📋 Most Discovered", style=discord.ButtonStyle.primary, row=0)
     async def show_discovered(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.category = "discovered"
         self.page = 0
-        await self.update_buttons_async()
-        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        data = await self.get_leaderboard_data()
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
+        await self.update_buttons_async(max_pages=max_pages)
+        await interaction.response.edit_message(embed=await self.format_page(data=data), view=self)
 
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=1)
     async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        max_pages = await self.get_max_pages()
+        data = await self.get_leaderboard_data()
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
         self.page = (self.page - 1) % max_pages
-        await self.update_buttons_async()
-        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        await self.update_buttons_async(max_pages=max_pages)
+        await interaction.response.edit_message(embed=await self.format_page(data=data), view=self)
 
     @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary, row=1)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        max_pages = await self.get_max_pages()
+        data = await self.get_leaderboard_data()
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
         self.page = (self.page + 1) % max_pages
-        await self.update_buttons_async()
-        await interaction.response.edit_message(embed=await self.format_page(), view=self)
+        await self.update_buttons_async(max_pages=max_pages)
+        await interaction.response.edit_message(embed=await self.format_page(data=data), view=self)
 
-    async def get_leaderboard_data(self) -> List[tuple]:
+    async def get_leaderboard_data(self, target_db: Optional[Any] = None) -> List[tuple]:
         """
         Fetches all data in 3 bulk queries instead of N+1 queries
         Returns sorted list of (user_id, value)
@@ -108,43 +121,54 @@ class LeaderboardView(discord.ui.View):
         leaderboard_data = []
         rarity_map = {name: i for i, (name, _, _) in enumerate(RARITIES)}
 
-        await db._check_conn()
-        async with db.conn.execute(
-            "SELECT user_id, roll_count, highscore, luck_multi, max_luck, clover_multi, clovers_earned, luck_override FROM users"
-        ) as cursor:
-            users_rows = await cursor.fetchall()
-            users_map = {
-                r[0]: {
-                    "roll_count": r[1],
-                    "highscore": r[2],
-                    "luck_multi": r[3],
-                    "max_luck": r[4],
-                    "clover_multi": r[5],
-                    "clovers_earned": r[6],
-                    "luck_override": r[7],
+        active_db = target_db
+        if active_db is None:
+            bot_db = getattr(self.bot, "db", None)
+            if isinstance(bot_db, database.Database):
+                active_db = bot_db
+            elif bot_db is not None and "db" in getattr(self.bot, "__dict__", {}):
+                active_db = bot_db
+            else:
+                active_db = getattr(database, "db", db)
+
+        await active_db._check_conn()
+        async with active_db._lock:
+            async with active_db.conn.execute(
+                "SELECT user_id, roll_count, highscore, luck_multi, max_luck, clover_multi, clovers_earned, luck_override FROM users"
+            ) as cursor:
+                users_rows = await cursor.fetchall()
+                users_map = {
+                    r[0]: {
+                        "roll_count": r[1],
+                        "highscore": r[2],
+                        "luck_multi": r[3],
+                        "max_luck": r[4],
+                        "clover_multi": r[5],
+                        "clovers_earned": r[6],
+                        "luck_override": r[7],
+                    }
+                    for r in users_rows
                 }
-                for r in users_rows
-            }
 
-        async with db.conn.execute(
-            "SELECT user_id, category, upgrade_key, tier FROM user_upgrades"
-        ) as cursor:
-            upgrades_rows = await cursor.fetchall()
-            upgrades_map = {}
-            for uid, cat, key, tier in upgrades_rows:
-                if uid not in upgrades_map:
-                    upgrades_map[uid] = {"luck": {}, "roll": {}, "clover": {}}
-                upgrades_map[uid][cat][key] = tier
+            async with active_db.conn.execute(
+                "SELECT user_id, category, upgrade_key, tier FROM user_upgrades"
+            ) as cursor:
+                upgrades_rows = await cursor.fetchall()
+                upgrades_map = {}
+                for uid, cat, key, tier in upgrades_rows:
+                    if uid not in upgrades_map:
+                        upgrades_map[uid] = {"luck": {}, "roll": {}, "clover": {}}
+                    upgrades_map[uid][cat][key] = tier
 
-        async with db.conn.execute(
-            "SELECT user_id, item_name FROM user_inventory WHERE discovered = 1"
-        ) as cursor:
-            inv_rows = await cursor.fetchall()
-            discovered_map = {}
-            for uid, item in inv_rows:
-                if uid not in discovered_map:
-                    discovered_map[uid] = {}
-                discovered_map[uid][item] = True
+            async with active_db.conn.execute(
+                "SELECT user_id, item_name FROM user_inventory WHERE discovered = 1"
+            ) as cursor:
+                inv_rows = await cursor.fetchall()
+                discovered_map = {}
+                for uid, item in inv_rows:
+                    if uid not in discovered_map:
+                        discovered_map[uid] = {}
+                    discovered_map[uid][item] = True
 
         for user_id, data in users_map.items():
             val = 0
@@ -162,7 +186,7 @@ class LeaderboardView(discord.ui.View):
                     "luck_override": data["luck_override"],
                 }
 
-                if data.get("luck_override"):
+                if data.get("luck_override") is not None:
                     total_luck = float(data["luck_override"])
                 else:
                     bonuses = await get_upgrade_effect(user_id, user_obj=user_obj)
@@ -185,13 +209,19 @@ class LeaderboardView(discord.ui.View):
         leaderboard_data.sort(key=lambda x: x[1], reverse=True)
         return leaderboard_data
 
-    async def get_max_pages(self) -> int:
-        data = await self.get_leaderboard_data()
+    async def get_max_pages(
+        self, data: Optional[List[tuple]] = None, target_db: Optional[Any] = None
+    ) -> int:
+        if data is None:
+            data = await self.get_leaderboard_data(target_db=target_db)
         return max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
 
-    async def format_page(self) -> discord.Embed:
-        data = await self.get_leaderboard_data()
-        max_pages = await self.get_max_pages()
+    async def format_page(
+        self, data: Optional[List[tuple]] = None, target_db: Optional[Any] = None
+    ) -> discord.Embed:
+        if data is None:
+            data = await self.get_leaderboard_data(target_db=target_db)
+        max_pages = max(1, (len(data) + self.entries_per_page - 1) // self.entries_per_page)
 
         start_idx = self.page * self.entries_per_page
         end_idx = min(start_idx + self.entries_per_page, len(data))
@@ -225,6 +255,8 @@ class LeaderboardView(discord.ui.View):
                     formatted_value = format_number(value)
                 elif self.category == "rolls":
                     formatted_value = f"{int(value):,}"
+                elif self.category == "discovered":
+                    formatted_value = str(int(value))
                 else:
                     formatted_value = RARITIES[int(value)][0] if value != -1 else "None"
 
@@ -261,8 +293,10 @@ class LeaderboardCommand(commands.Cog):
     async def leaderboard(self, interaction: discord.Interaction):
         await interaction.response.defer()
         view = LeaderboardView(self.bot)
-        await view.update_buttons_async()
-        embed = await view.format_page()
+        data = await view.get_leaderboard_data()
+        max_pages = max(1, (len(data) + view.entries_per_page - 1) // view.entries_per_page)
+        await view.update_buttons_async(max_pages=max_pages)
+        embed = await view.format_page(data=data)
         await interaction.followup.send(embed=embed, view=view)
 
 

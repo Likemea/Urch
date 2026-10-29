@@ -15,6 +15,13 @@ from recipes import POTION_RECIPES
 from buffs import apply_potion_craft
 
 
+async def _send_response(interaction: discord.Interaction, *args, **kwargs):
+    try:
+        return await interaction.followup.send(*args, **kwargs)
+    except TypeError:
+        return await interaction.response.send_message(*args, **kwargs)
+
+
 class RecipesCommand(
     commands.GroupCog, group_name="recipes", group_description="Potion and alchemy commands"
 ):
@@ -24,6 +31,10 @@ class RecipesCommand(
 
     @app_commands.command(name="view", description="Displays all recipes")
     async def view(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer()
+        except TypeError:
+            pass
         user_id = str(interaction.user.id)
         user = await ensure_user(user_id)
 
@@ -50,7 +61,10 @@ class RecipesCommand(
             embed.add_field(name=recipe.get("name", p_id), value=field_value, inline=False)
 
         embed.set_footer(text="Use /recipes craft <recipe_id> to brew a potion.")
-        await interaction.response.send_message(embed=embed)
+        try:
+            await interaction.followup.send(embed=embed)
+        except TypeError:
+            await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="craft", description="Craft a potion from recipes")
     @app_commands.describe(
@@ -63,41 +77,84 @@ class RecipesCommand(
         recipe_id: str,
         amount: app_commands.Range[int, 1, 1000] = 1,
     ):
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except TypeError:
+            pass
+
         recipe = POTION_RECIPES.get(recipe_id)
         if not recipe:
-            await interaction.response.send_message(
-                f"❌ Recipe `{recipe_id}` does not exist.", ephemeral=True
+            await _send_response(
+                interaction, f"❌ Recipe `{recipe_id}` does not exist.", ephemeral=True
             )
             return
 
         if amount < 1:
-            await interaction.response.send_message("❌ Amount must be at least 1.", ephemeral=True)
+            await _send_response(interaction, "❌ Amount must be at least 1.", ephemeral=True)
             return
 
         user_id = str(interaction.user.id)
-        scaled_reqs = {k: v * amount for k, v in recipe["reqs"].items()}
+        from database import db
+        import time
 
-        ok, missing = await has_requirements(user_id, scaled_reqs)
-        if not ok:
-            missing_items = []
-            for k, amt in missing.items():
-                name = RARITY_ID_TO_NAME.get(k, k.capitalize())
-                missing_items.append(f"{amt:,}x {name}")
-            await interaction.response.send_message(
-                f"❌ You are missing ingredients for **{recipe['name']}** (x{amount:,}):\n"
-                + "\n".join(f"• {m}" for m in missing_items),
-                ephemeral=True,
-            )
-            return
+        buff = recipe["buff"]
+        now = int(time.time())
 
-        consumed = await consume_requirements(user_id, scaled_reqs)
-        if not consumed:
-            await interaction.response.send_message(
-                "❌ Failed to consume ingredients. Please try again.", ephemeral=True
-            )
-            return
+        async with db.lock_user(user_id):
+            if buff["type"] == "duration":
+                key = f"potion_exp_{recipe_id}"
+                stored_exp = await currency_count(user_id, key)
+                current_active = max(0, stored_exp - now) if stored_exp > now else 0
+                dur_per_potion = buff["duration_seconds"]
+                max_craftable = max(0, (86400 - current_active) // dur_per_potion)
+                if amount > max_craftable:
+                    await _send_response(
+                        interaction,
+                        f"❌ Crafting {amount}x **{recipe['name']}** exceeds the 24-hour active duration cap.\n"
+                        f"You currently have {current_active // 60}m active and can craft at most **{max_craftable}** more.",
+                        ephemeral=True,
+                    )
+                    return
+            elif buff["type"] == "charges":
+                key = f"potion_charge_{recipe_id}"
+                stored_charges = await currency_count(user_id, key)
+                charges_per_potion = buff["charges"]
+                max_craftable = max(0, (1000 - stored_charges) // charges_per_potion)
+                if amount > max_craftable:
+                    await _send_response(
+                        interaction,
+                        f"❌ Crafting {amount}x **{recipe['name']}** exceeds the 1,000 charge limit.\n"
+                        f"You currently have {stored_charges:,} charges and can craft at most **{max_craftable}** more.",
+                        ephemeral=True,
+                    )
+                    return
 
-        await apply_potion_craft(user_id, recipe_id, amount=amount)
+            scaled_reqs = {k: v * amount for k, v in recipe["reqs"].items()}
+
+            ok, missing = await has_requirements(user_id, scaled_reqs)
+            if not ok:
+                missing_items = []
+                for k, amt in missing.items():
+                    name = RARITY_ID_TO_NAME.get(k, k.capitalize())
+                    missing_items.append(f"{amt:,}x {name}")
+                await _send_response(
+                    interaction,
+                    f"❌ You are missing ingredients for **{recipe['name']}** (x{amount:,}):\n"
+                    + "\n".join(f"• {m}" for m in missing_items),
+                    ephemeral=True,
+                )
+                return
+
+            consumed = await consume_requirements(user_id, scaled_reqs)
+            if not consumed:
+                await _send_response(
+                    interaction,
+                    "❌ Failed to consume ingredients. Please try again.",
+                    ephemeral=True,
+                )
+                return
+
+            await apply_potion_craft(user_id, recipe_id, amount=amount)
 
         desc_prefix = f"You successfully brewed **{amount:,}x {recipe['name']}**!\n\n*{recipe['description']}*"
         embed = discord.Embed(
@@ -105,7 +162,7 @@ class RecipesCommand(
             description=desc_prefix,
             color=discord.Color.green(),
         )
-        await interaction.response.send_message(embed=embed)
+        await _send_response(interaction, embed=embed)
 
     @craft.autocomplete("recipe_id")
     async def craft_autocomplete(

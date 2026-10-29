@@ -54,9 +54,9 @@ class UpgradeView(discord.ui.View):
         bonuses = await get_upgrade_effect(self.user_id, user_obj=user)
         luck = base_luck + bonuses["luck_bonus"]
         luck *= bonuses["exp_bonus"]
-        if luck < 1000:
+        if luck < 10000:
             return await interaction.response.send_message(
-                "☘ You need 1000 Luck to access this", ephemeral=True
+                "☘ You need 10000 Luck to access this", ephemeral=True
             )
 
         self.category = "clover"
@@ -104,33 +104,50 @@ class UpgradeView(discord.ui.View):
         key = keys[self.page]
         upgrade_def = category_dict[key]
 
-        user = await ensure_user(self.user_id)
-        user_upgrades = user.setdefault("upgrades", {})
-        cat_upgs = user_upgrades.setdefault(self.category, {})
-        current_tier = int(cat_upgs.get(key, 0))
+        from database import db
+        async with db.lock_user(self.user_id):
+            user = await ensure_user(self.user_id)
+            if user.get("upgrades") is None:
+                user["upgrades"] = {}
+            user_upgrades = user["upgrades"]
+            if user_upgrades.get(self.category) is None:
+                user_upgrades[self.category] = {}
+            cat_upgs = user_upgrades[self.category]
+            current_tier = int(cat_upgs.get(key, 0))
 
-        next_tier = current_tier + 1
-        reqs = upgrade_def.get("requirements", {}).get(next_tier)
-        if not reqs:
-            return await interaction.response.send_message(
-                "✅ Upgrade is already maxed.", ephemeral=True
-            )
+            next_tier = current_tier + 1
+            reqs = upgrade_def.get("requirements", {}).get(next_tier)
+            if not reqs:
+                return await interaction.response.send_message(
+                    "✅ Upgrade is already maxed.", ephemeral=True
+                )
 
-        ok, missing = await has_requirements(self.user_id, reqs, user_obj=user)
-        if not ok:
-            lines = [f"{rar} ({need} more needed)" for rar, need in missing.items()]
-            return await interaction.response.send_message(
-                "❌ You don't have enough items:\n" + "\n".join(lines), ephemeral=True
-            )
+            ok, missing = await has_requirements(self.user_id, reqs, user_obj=user)
+            if not ok:
+                lines = [f"{rar} ({need} more needed)" for rar, need in missing.items()]
+                return await interaction.response.send_message(
+                    "❌ You don't have enough items:\n" + "\n".join(lines), ephemeral=True
+                )
 
-        success = await consume_requirements(self.user_id, reqs)
-        if not success:
-            return await interaction.response.send_message(
-                "Unexpected error consuming items.", ephemeral=True
-            )
+            async with db.transaction():
+                success = await consume_requirements(self.user_id, reqs)
+                if not success:
+                    success = False
+                else:
+                    user = await ensure_user(self.user_id)
+                    if user.get("upgrades") is None:
+                        user["upgrades"] = {}
+                    user_upgrades = user["upgrades"]
+                    if user_upgrades.get(self.category) is None:
+                        user_upgrades[self.category] = {}
+                    cat_upgs = user_upgrades[self.category]
+                    cat_upgs[key] = next_tier
+                    await save_user_data(self.user_id, user)
 
-        cat_upgs[key] = next_tier
-        await save_user_data(self.user_id, user)
+            if not success:
+                return await interaction.response.send_message(
+                    "Unexpected error consuming items.", ephemeral=True
+                )
 
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
@@ -149,52 +166,69 @@ class UpgradeView(discord.ui.View):
         key = keys[self.page]
         upgrade_def = category_dict[key]
 
-        user = await ensure_user(self.user_id)
-        user_upgrades = user.setdefault("upgrades", {})
-        cat_upgs = user_upgrades.setdefault(self.category, {})
-        current_tier = int(cat_upgs.get(key, 0))
+        from database import db
+        async with db.lock_user(self.user_id):
+            user = await ensure_user(self.user_id)
+            if user.get("upgrades") is None:
+                user["upgrades"] = {}
+            user_upgrades = user["upgrades"]
+            if user_upgrades.get(self.category) is None:
+                user_upgrades[self.category] = {}
+            cat_upgs = user_upgrades[self.category]
+            current_tier = int(cat_upgs.get(key, 0))
 
-        max_tier = upgrade_def.get("max_tier", current_tier + 100)
-        tiers_bought = 0
-        total_cost = {}
+            max_tier = upgrade_def.get("max_tier", current_tier + 100)
+            tiers_bought = 0
+            total_cost = {}
 
-        max_tiers_to_check = 25
-        tiers_checked = 0
+            max_tiers_to_check = 25
+            tiers_checked = 0
 
-        for next_tier in range(current_tier + 1, max_tier + 1):
-            if tiers_checked >= max_tiers_to_check:
-                break
-            tiers_checked += 1
+            for next_tier in range(current_tier + 1, max_tier + 1):
+                if tiers_checked >= max_tiers_to_check:
+                    break
+                tiers_checked += 1
 
-            reqs = upgrade_def.get("requirements", {}).get(next_tier)
-            if not reqs:
-                break
+                reqs = upgrade_def.get("requirements", {}).get(next_tier)
+                if not reqs:
+                    break
 
-            # check if we can afford cumulative cost + this tier
-            # we need a temp cost dict to check against
-            temp_reqs = total_cost.copy()
-            for item, amount in reqs.items():
-                temp_reqs[item] = temp_reqs.get(item, 0) + amount
+                # check if we can afford cumulative cost + this tier
+                # we need a temp cost dict to check against
+                temp_reqs = total_cost.copy()
+                for item, amount in reqs.items():
+                    temp_reqs[item] = temp_reqs.get(item, 0) + amount
 
-            ok, missing = await has_requirements(self.user_id, temp_reqs, user_obj=user)
-            if not ok:
-                break
+                ok, missing = await has_requirements(self.user_id, temp_reqs, user_obj=user)
+                if not ok:
+                    break
 
-            # if affordable, commit to total cost
-            total_cost = temp_reqs
-            tiers_bought += 1
+                # if affordable, commit to total cost
+                total_cost = temp_reqs
+                tiers_bought += 1
 
-        if tiers_bought == 0:
-            return await interaction.response.send_message(
-                "❌ Cannot afford any more", ephemeral=True
-            )
+            if tiers_bought == 0:
+                return await interaction.response.send_message(
+                    "❌ Cannot afford any more", ephemeral=True
+                )
 
-        success = await consume_requirements(self.user_id, total_cost)
-        if not success:
-            return await interaction.response.send_message("unexpected error", ephemeral=True)
+            async with db.transaction():
+                success = await consume_requirements(self.user_id, total_cost)
+                if not success:
+                    success = False
+                else:
+                    user = await ensure_user(self.user_id)
+                    if user.get("upgrades") is None:
+                        user["upgrades"] = {}
+                    user_upgrades = user["upgrades"]
+                    if user_upgrades.get(self.category) is None:
+                        user_upgrades[self.category] = {}
+                    cat_upgs = user_upgrades[self.category]
+                    cat_upgs[key] = current_tier + tiers_bought
+                    await save_user_data(self.user_id, user)
 
-        cat_upgs[key] = current_tier + tiers_bought
-        await save_user_data(self.user_id, user)
+            if not success:
+                return await interaction.response.send_message("unexpected error", ephemeral=True)
 
         await interaction.response.edit_message(embed=await self.format_page(), view=self)
 
@@ -212,7 +246,7 @@ class UpgradeView(discord.ui.View):
 
         user = await ensure_user(self.user_id)
         luck_override = user.get("luck_override")
-        upgrades = user.get("upgrades", {}).get(self.category, {})
+        upgrades = (user.get("upgrades") or {}).get(self.category) or {}
         current_tier = int(upgrades.get(key, 0))
         next_tier = current_tier + 1
         reqs = upgrade_def.get("requirements", {}).get(next_tier)
@@ -249,7 +283,7 @@ class UpgradeView(discord.ui.View):
             embed.add_field(name="Tier", value=str(current_tier), inline=True)
         elif self.category == "clover":
             user = await ensure_user(self.user_id)
-            clover_count = user.get("currencies", {}).get("clovers", 0)
+            clover_count = (user.get("currencies") or {}).get("clovers", 0)
             embed.add_field(name="☘ You have", value=f"**{clover_count}**\nClovers", inline=True)
             embed.add_field(name="\u200b", value="\u200b", inline=True)
             embed.add_field(name="Tier", value=str(current_tier), inline=True)

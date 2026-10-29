@@ -4,7 +4,22 @@ import urllib.parse
 import io
 import aiohttp
 import time
-from providers import PROVIDERS
+from providers import PROVIDERS, get_session
+
+MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB cap
+
+
+async def _read_bounded(response: aiohttp.ClientResponse, max_bytes: int) -> bytes | None:
+    if getattr(response, "content_length", None) and response.content_length > max_bytes:
+        return None
+    content = getattr(response, "content", None)
+    if content is not None and hasattr(content, "read"):
+        data = await content.read(max_bytes + 1)
+    else:
+        data = await response.read()
+    if len(data) > max_bytes:
+        return None
+    return data
 
 
 async def generate_image(
@@ -43,18 +58,23 @@ async def generate_image(
     if model == "gpt-image-2":
         params["quality"] = kwargs.get("quality", "low")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers, params=params) as response:
-            if response.status == 200:
-                data = await response.read()
-                image_binary = io.BytesIO(data)
-                image_binary.seek(0)
-
-                content_type = response.headers.get("Content-Type", "")
-                ext = "jpg" if "jpeg" in content_type else "png"
-
-                return discord.File(fp=image_binary, filename=f"gen_{int(time.time())}.{ext}")
-                print(f"[ImageGen] {prompt}")
-            else:
-                print(f"[ImageGen] Failed with {response.status}")
+    session = await get_session()
+    async with session.get(
+        url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=120)
+    ) as response:
+        if response.status == 200:
+            data = await _read_bounded(response, MAX_IMAGE_BYTES)
+            if data is None:
+                print("[ImageGen] Response exceeded maximum allowed size (10 MB)")
                 return None
+            image_binary = io.BytesIO(data)
+            image_binary.seek(0)
+
+            content_type = response.headers.get("Content-Type", "")
+            ext = "jpg" if "jpeg" in content_type else "png"
+
+            print(f"[ImageGen] {prompt}")
+            return discord.File(fp=image_binary, filename=f"gen_{int(time.time())}.{ext}")
+        else:
+            print(f"[ImageGen] Failed with {response.status}")
+            return None

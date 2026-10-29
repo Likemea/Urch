@@ -95,15 +95,24 @@ pip install -r requirements.txt
 
 ### 3. Environment Configuration
 
-Create a `.env` file in the root directory:
+Copy `.env.example` to `.env` and fill in your keys:
 
-```env
-BOT_TOKEN=your_discord_bot_token_here
+```bash
+cp .env.example .env
 ```
+
+| Variable               | Required | Used for                                  |
+| :--------------------- | :------- | :---------------------------------------- |
+| `BOT_TOKEN`            | ✅       | Discord bot login                         |
+| `GROQ_API_KEY`         | ✅       | Model router, safeguard, transcription    |
+| `POLLINATIONS_API_KEY` | ✅       | Chat models, image and audio generation   |
+| `GOOGLE_API_KEY`       | ✅       | Gemini models                             |
+| `BACKUP_KEEP`          | ❌       | Daily DB backups to keep (default `7`)    |
 
 ### 4. Database Setup
 
 Urch automatically creates `bot_data.db` and its tables on first startup.
+A rotating backup is written to `backups/` once a day while the bot runs. You can also run `python backup.py` manually or from cron.
 
 ### 5. Running the Bot
 

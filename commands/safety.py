@@ -419,12 +419,13 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
             channels_to_scan.extend(getattr(guild, "text_channels", []))
             channels_to_scan.extend(getattr(guild, "voice_channels", []))
             channels_to_scan.extend(getattr(guild, "stage_channels", []))
-            channels_to_scan.extend(getattr(guild, "forum_channels", []))
 
             channels_to_scan.extend(getattr(guild, "threads", []))
-            for channel in getattr(guild, "text_channels", []):
+            for parent_channel in list(getattr(guild, "text_channels", [])) + list(
+                getattr(guild, "forum_channels", [])
+            ):
                 try:
-                    async for thread in channel.archived_threads(limit=None):
+                    async for thread in parent_channel.archived_threads(limit=None):
                         channels_to_scan.append(thread)
                 except Exception:
                     continue
@@ -443,6 +444,11 @@ class GuildPurgeModal(discord.ui.Modal, title="Purge Server Messages"):
             for channel in channels_to_scan:
                 if status_view.is_cancelled:
                     break
+
+                deleted = []
+                if not hasattr(channel, "purge"):
+                    channels_processed += 1
+                    continue
 
                 try:
                     perms = channel.permissions_for(guild.me)

@@ -23,7 +23,7 @@ POTION_RECIPES = {
         },
         "buff": {
             "type": "duration",
-            "duration_seconds": 300,
+            "duration_seconds": 180,
             "targets": ["manual"],
             "luck_mult": 1.5,
         },
@@ -34,7 +34,7 @@ POTION_RECIPES = {
         "reqs": {"lucky": 100, "ruby": 70, "money": 50},
         "buff": {
             "type": "duration",
-            "duration_seconds": 360,
+            "duration_seconds": 300,
             "targets": ["manual"],
             "luck_mult": 2.0,
         },
@@ -52,7 +52,7 @@ POTION_RECIPES = {
         },
         "buff": {
             "type": "charges",
-            "charges": 50,
+            "charges": 25,
             "targets": ["manual"],
             "luck_mult": 6.0,
             "clover_mult": 1.0,

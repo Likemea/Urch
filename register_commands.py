@@ -431,6 +431,43 @@ commands = [
             }
         ],
     },
+    {
+        "name": "tts",
+        "type": 1,
+        "description": "Convert text into speech",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+        "options": [
+            {
+                "name": "text",
+                "description": "Text to be spoken",
+                "type": 3,  # STRING
+                "required": True,
+            },
+            {
+                "name": "voice",
+                "description": "Speaker's voice",
+                "type": 3,  # STRING
+                "required": False,
+                "choices": [
+                    {"name": "Nova (Female, warm & natural)", "value": "nova"},
+                    {"name": "Alloy (Neutral, balanced)", "value": "alloy"},
+                    {"name": "Echo (Male, clear)", "value": "echo"},
+                    {"name": "Fable (British accent)", "value": "fable"},
+                    {"name": "Onyx (Male, deep & authoritative)", "value": "onyx"},
+                    {"name": "Shimmer (Female, expressive)", "value": "shimmer"},
+                ],
+            },
+            {
+                "name": "speed",
+                "description": "Speaking speed (0.25-4.0)",
+                "type": 10,  # NUMBER
+                "required": False,
+                "min_value": 0.25,
+                "max_value": 4.0,
+            },
+        ],
+    },
 ]
 
 headers = {"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"}
