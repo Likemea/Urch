@@ -35,3 +35,5 @@ logs/
 data/*.db
 .ruff_cache/
 .pytest_cache/
+
+.sim_output/
