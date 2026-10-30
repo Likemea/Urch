@@ -193,6 +193,20 @@ commands = [
         ],
     },
     {
+        "name": "pit",
+        "type": 1,
+        "description": "Throw unwanted or excess rarities into The Pit to fuse them into a higher rarity",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+    },
+    {
+        "name": "biome",
+        "type": 1,
+        "description": "View the current server-wide biome event or browse all biomes",
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+    },
+    {
         "name": "setluck",
         "type": 1,
         "description": "Set your effective luck",

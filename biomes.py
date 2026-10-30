@@ -9,15 +9,12 @@ from raritylist import RARITIES
 RARITY_ID_TO_NAME = {r[2]: r[0] for r in RARITIES}
 RARITY_NAME_TO_ID = {r[0]: r[2] for r in RARITIES}
 
-# Interval between natural biome spawns: 2 to 4 hours (in seconds)
 BIOME_COOLDOWN_MIN = 2 * 3600
 BIOME_COOLDOWN_MAX = 4 * 3600
 
-# Duration of a biome event: 15 to 30 minutes (in seconds)
 BIOME_DURATION_MIN = 15 * 60
 BIOME_DURATION_MAX = 30 * 60
 
-# Multiplier range: x3 to x10
 BIOME_MULT_MIN = 3
 BIOME_MULT_MAX = 10
 
@@ -38,7 +35,7 @@ BIOMES: Dict[str, Dict[str, Any]] = {
         ],
     },
     "solar_flare": {
-        "name": "Cosmic Solar Flare",
+        "name": "Solar Flare",
         "emoji": "☀️",
         "description": "Blinding stellar radiation floods the atmosphere, supercharging astrophysical rarities.",
         "color": 0xFFAC33,
@@ -65,7 +62,7 @@ BIOMES: Dict[str, Dict[str, Any]] = {
     "subatomic_storm": {
         "name": "Subatomic Fallout",
         "emoji": "☢️",
-        "description": "Quantum particles and exotic elements collide in a high-energy chain reaction.",
+        "description": "Quantum particles and exotic elements collide in a chain reaction.",
         "color": 0x77B255,
         "rarities": [
             "quantum",
@@ -91,9 +88,9 @@ BIOMES: Dict[str, Dict[str, Any]] = {
         ],
     },
     "cyber_anomaly": {
-        "name": "Binary Glitch Anomaly",
+        "name": "Anomaly Glitch",
         "emoji": "👾",
-        "description": "Reality's source code fractures, leaking corrupted data and computational rarities.",
+        "description": "Source code error leaks",
         "color": 0xAA8ED6,
         "rarities": [
             "error",
@@ -120,8 +117,8 @@ BIOMES: Dict[str, Dict[str, Any]] = {
             "128_bit",
         ],
     },
-    "golden_convergence": {
-        "name": "Golden Jackpot Convergence",
+    "golden_jackpot": {
+        "name": "Golden Jackpot",
         "emoji": "🍀",
         "description": "A shimmering aurora of pure fortune rains clovers, gems, and jackpots.",
         "color": 0xFDCB58,
@@ -188,10 +185,10 @@ BIOMES: Dict[str, Dict[str, Any]] = {
             "extremity",
         ],
     },
-    "the_53_convergence": {
-        "name": "The 53 Convergence",
+    "the_53_apparition": {
+        "name": "The 53 Apparition",
         "emoji": "🔢",
-        "description": "Mathematical constants align around the sacred number 53.",
+        "description": "53 appears",
         "color": 0x3B88C3,
         "rarities": [
             "53",
@@ -210,7 +207,6 @@ BIOMES: Dict[str, Dict[str, Any]] = {
 }
 
 
-# Runtime state for the server-wide biome system
 _current_biome: Optional[Dict[str, Any]] = None
 _next_biome_timestamp: float = time.time() + random.randint(BIOME_COOLDOWN_MIN, BIOME_COOLDOWN_MAX)
 
@@ -225,7 +221,6 @@ def get_active_biome(now: Optional[float] = None) -> Optional[Dict[str, Any]]:
 
     if _current_biome is not None:
         if now >= _current_biome["ends_at"]:
-            # Biome expired; schedule next one if not already in the future
             if _next_biome_timestamp <= _current_biome["ends_at"]:
                 _next_biome_timestamp = _current_biome["ends_at"] + random.randint(
                     BIOME_COOLDOWN_MIN, BIOME_COOLDOWN_MAX
@@ -327,7 +322,7 @@ def check_and_advance_biome(now: Optional[float] = None) -> Optional[Dict[str, A
 def format_active_biome_banner(now: Optional[float] = None) -> Optional[str]:
     """
     Returns a compact 1-line summary of the active biome for embeds/footers, or None.
-    e.g. '❄️ Jötunn Permafrost (x5 Boost • 18m 42s left)'
+    e.g. '❄️ Jötunn Permafrost (x5 • 18m 42s)'
     """
     if now is None:
         now = time.time()
@@ -340,5 +335,5 @@ def format_active_biome_banner(now: Optional[float] = None) -> Optional[str]:
     time_str = f"{m}m {s}s" if m > 0 else f"{s}s"
     mult_val = active["multiplier"]
     mult_str = f"x{int(mult_val)}" if float(mult_val).is_integer() else f"x{mult_val:.1f}"
-    return f"{active['emoji']} {active['name']} ({mult_str} Boost • {time_str} left)"
+    return f"{active['emoji']} {active['name']} ({mult_str} • {time_str})"
 

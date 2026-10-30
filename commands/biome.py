@@ -58,7 +58,7 @@ class BiomeBrowserView(discord.ui.View):
     async def switch_to_browse(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message(
-                "This menu belongs to someone else. Use `/biome`!", ephemeral=True
+                "This isn't your menu.", ephemeral=True
             )
         self.mode = "browse"
         self.update_buttons()
@@ -67,7 +67,7 @@ class BiomeBrowserView(discord.ui.View):
     async def switch_to_status(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message(
-                "This menu belongs to someone else. Use `/biome`!", ephemeral=True
+                "This isn't your menu.", ephemeral=True
             )
         self.mode = "status"
         self.update_buttons()
@@ -76,7 +76,7 @@ class BiomeBrowserView(discord.ui.View):
     async def prev_page(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message(
-                "This menu belongs to someone else. Use `/biome`!", ephemeral=True
+                "This isn't your menu.", ephemeral=True
             )
         self.page = (self.page - 1) % len(self.biome_keys)
         self.update_buttons()
@@ -85,7 +85,7 @@ class BiomeBrowserView(discord.ui.View):
     async def next_page(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message(
-                "This menu belongs to someone else. Use `/biome`!", ephemeral=True
+                "This isn't your menu.", ephemeral=True
             )
         self.page = (self.page + 1) % len(self.biome_keys)
         self.update_buttons()
@@ -110,7 +110,7 @@ class BiomeBrowserView(discord.ui.View):
                     rarities_text = rarities_text[:990] + "\n..."
 
                 embed = discord.Embed(
-                    title=f"{active['emoji']} Active Biome: {active['name']}",
+                    title=f"{active['emoji']} Biome: {active['name']}",
                     description=f"*{active['description']}*",
                     color=discord.Color(active.get("color", 0x5865F2)),
                 )
@@ -122,7 +122,7 @@ class BiomeBrowserView(discord.ui.View):
                     inline=False,
                 )
                 embed.set_footer(
-                    text="Server-wide biome boosts apply automatically to /roll and /autoroll!"
+                    text="Applies to /roll and /autoroll"
                 )
                 return embed
             else:
@@ -130,19 +130,19 @@ class BiomeBrowserView(discord.ui.View):
                 wait_secs = max(0, int(next_ts - now))
                 wait_str = _format_duration(wait_secs)
                 embed = discord.Embed(
-                    title="🌤️ Calm Skies — No Active Biome",
+                    title="🌤️ No Biome",
                     description=(
-                        "The atmosphere is currently tranquil. Every few hours, a random server-wide "
-                        "biome event triggers for **15–30 minutes**, boosting themed rarities by **x3 to x10**!"
+                        "Atmosphere is tranquil. Server-wide biomes trigger every few hours for **15–30 minutes**, "
+                        "boosting themed rarities by **x3 to x10**."
                     ),
                     color=discord.Color.blurple(),
                 )
                 embed.add_field(
-                    name="Next Biome Forecast",
-                    value=f"⏳ Arriving in **{wait_str}**",
+                    name="Next Biome",
+                    value=f"⏳ In **{wait_str}**",
                     inline=False,
                 )
-                embed.set_footer(text="Click 'Browse All Biomes' below to inspect every biome!")
+                embed.set_footer(text="Biomes rotate automatically")
                 return embed
         else:
             key = self.biome_keys[self.page]

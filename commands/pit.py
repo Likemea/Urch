@@ -26,8 +26,8 @@ RARITY_ID_TO_ONE_IN: Dict[str, float] = {
 
 QUANTITY_MODES = [
     ("keep_one", "🛡️ Mode: Keep 1"),
-    ("all", "💥 Mode: All (100%)"),
-    ("half", "⚖️ Mode: Half (50%)"),
+    ("all", "💥 Mode: All"),
+    ("half", "⚖️ Mode: Half"),
 ]
 
 
@@ -138,7 +138,7 @@ class PitRaritySelect(discord.ui.Select):
             )
         else:
             super().__init__(
-                placeholder=f"🕳️ Select rarities to throw in (Page {pit_view.page + 1}/{pit_view.total_pages})...",
+                placeholder="Select rarities...",
                 min_values=0,
                 max_values=len(options),
                 options=options,
@@ -148,7 +148,7 @@ class PitRaritySelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.pit_view.user_id:
             return await interaction.response.send_message(
-                "This isn't your Pit session! Use `/pit` to open your own.", ephemeral=True
+                "This isn't your menu.", ephemeral=True
             )
 
         # Update selected_ids for items on the current page while preserving other pages
@@ -320,12 +320,11 @@ class PitView(discord.ui.View):
             desc_parts.append(self.last_result_banner)
 
         desc_parts.append(
-            "Select unwanted or excess rarities from the dropdown below to throw them into **The Pit**.\n"
-            "Their combined `1 in X` rarity values fuse into the **closest matching rarity**!"
+            "Combine excess rarities to fuse into the closest matching rarity."
         )
 
         embed = discord.Embed(
-            title="🕳️ The Pit — Rarity Sacrificing & Fusion",
+            title="🕳️ The Pit",
             description="\n\n".join(desc_parts),
             color=discord.Color.dark_red() if plan else discord.Color.dark_purple(),
         )
@@ -335,7 +334,7 @@ class PitView(discord.ui.View):
             for r_name, qty, sub_val in plan[:12]:
                 preview_lines.append(f"• **x{qty:,}** {r_name} (`{format_number(sub_val)}`)")
             if len(plan) > 12:
-                preview_lines.append(f"*...and {len(plan) - 12} more rarity types*")
+                preview_lines.append(f"*...and {len(plan) - 12} more rarities*")
             embed.add_field(
                 name=f"🔥 Selected to Throw ({total_sac_items:,} items across {len(plan)} rarities)",
                 value="\n".join(preview_lines),
@@ -361,24 +360,21 @@ class PitView(discord.ui.View):
                 inline=True,
             )
             embed.add_field(
-                name="🎁 Fusion Outcome",
+                name="🎁 Reward",
                 value=outcome_text,
                 inline=True,
             )
         else:
             if self.selected_ids and self.qty_mode == "keep_one":
                 embed.add_field(
-                    name="ℹ️ No Excess Copies to Throw",
-                    value=(
-                        "You only own **1 copy** of the selected rarity, and **🛡️ Mode: Keep 1** is active.\n"
-                        "Switch to **💥 Mode: All (100%)** if you want to sacrifice your last copy!"
-                    ),
+                    name="ℹ️ No Excess Copies",
+                    value="You only own **1 copy** of the selected rarity with **Keep 1** mode active.",
                     inline=False,
                 )
             else:
                 embed.add_field(
-                    name="🕳️ The Pit Awaits",
-                    value="Use the dropdown menu (or **☑️ Select Page**) to choose rarities to sacrifice.",
+                    name="🕳️",
+                    value="No rarities selected to sacrifice.",
                     inline=False,
                 )
 
@@ -390,7 +386,7 @@ class PitView(discord.ui.View):
     async def _check_owner(self, interaction: discord.Interaction) -> bool:
         if str(interaction.user.id) != self.user_id:
             await interaction.response.send_message(
-                "This isn't your Pit session! Use `/pit` to open your own.", ephemeral=True
+                "This isn't your menu.", ephemeral=True
             )
             return False
         return True
@@ -510,7 +506,7 @@ class PitView(discord.ui.View):
             self.inventory = dict(live_inv)
             self.selected_ids.clear()
             self.last_result_banner = (
-                f"🌋 **THE PIT HAS SPOKEN!**\n"
+                f"🌋 **PITTED**\n"
                 f"You sacrificed **{total_sacrificed_count:,}x** rarities "
                 f"(Combined Value: `1 in {format_number(total_value)}`) and forged:\n"
                 f"✨ **{forged_rarity}** ✨"
@@ -526,7 +522,7 @@ class PitCommand(commands.Cog):
 
     @app_commands.command(
         name="pit",
-        description="Throw unwanted or excess rarities into The Pit to fuse them into a higher rarity",
+        description="Fuse excess rarities in The Pit into higher tiers",
     )
     async def pit(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
