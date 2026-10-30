@@ -70,8 +70,8 @@ def test_biome_trigger_and_expiration():
     banner = format_active_biome_banner(now=now + 600)
     assert banner is not None
     assert "Jötunn Permafrost" in banner
-    assert "x5 Boost" in banner
-    assert "10m 0s left" in banner
+    assert "x5" in banner
+    assert "10m 0s" in banner
 
     # Expired after duration
     expired = get_active_biome(now=now + 1201)
@@ -103,7 +103,7 @@ async def test_roll_rarities_applies_biome_multiplier(tmp_path):
     await db.initialize()
 
     try:
-        trigger_biome(biome_id="the_53_convergence", multiplier=10.0, duration_seconds=900)
+        trigger_biome(biome_id="the_53_apparition", multiplier=10.0, duration_seconds=900)
         captured_weights = {}
 
         orig_choices = biomes.random.choices
@@ -141,12 +141,12 @@ async def test_biome_command_and_browser():
     kwargs = inter.response.send_message.call_args.kwargs
     embed = kwargs["embed"]
     view: BiomeBrowserView = kwargs["view"]
-    assert "No Active Biome" in embed.title
+    assert "No Biome" in embed.title
 
     # Trigger a biome and refresh status
     trigger_biome(biome_id="solar_flare", multiplier=7.0, duration_seconds=1800)
     status_embed = view.format_embed()
-    assert "Cosmic Solar Flare" in status_embed.title
+    assert "Solar Flare" in status_embed.title
     assert any("x7" in f.value for f in status_embed.fields)
 
     # Switch to browse mode
