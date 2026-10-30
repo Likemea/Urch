@@ -10,9 +10,7 @@ from raritylist import RARITIES
 MAX_POTION_DURATION = 86400  # 24 hours max active duration
 MAX_POTION_CHARGES = 1000
 
-RARITY_ONE_IN_MAP: Dict[str, float] = {
-    r[0]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES
-}
+RARITY_ONE_IN_MAP: Dict[str, float] = {r[0]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES}
 
 
 async def apply_potion_craft(user_id: str, potion_id: str, amount: int = 1) -> bool:

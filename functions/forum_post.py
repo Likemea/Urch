@@ -66,7 +66,10 @@ async def create_forum_post(
             return f"Error: Could not retrieve forum channel (ID: {FORUM_CHANNEL_ID}): {e}", None
 
     if not isinstance(channel, discord.ForumChannel):
-        return f"Error: Channel {FORUM_CHANNEL_ID} is not a ForumChannel (type: {type(channel).__name__}).", None
+        return (
+            f"Error: Channel {FORUM_CHANNEL_ID} is not a ForumChannel (type: {type(channel).__name__}).",
+            None,
+        )
 
     applied_tags = []
     if tag:

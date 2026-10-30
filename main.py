@@ -407,9 +407,7 @@ async def handle_streaming_response(
         if verdict in ["unsafe_input", "unsafe_output", "unsafe_both"]:
             reason = safeguard_result.get("reasoning", "Unknown reason.")
             policy = safeguard_result.get("violated_policy", "Unspecified policy.")
-            warning_text = (
-                "Sorry, something went wrong. Please try again." 
-            )
+            warning_text = "Sorry, something went wrong. Please try again."
 
             channel_id = str(message.channel.id) if message and message.channel else None
             await target_msg.edit(content=warning_text)

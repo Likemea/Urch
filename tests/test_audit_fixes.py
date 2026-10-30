@@ -23,6 +23,7 @@ async def test_upgrade_persists_deduction(fresh_db, monkeypatch):
     """Verifies that purchasing an upgrade deducts currencies/items and persists the new tier without restoring stale balance."""
     monkeypatch.setattr(utils, "db", fresh_db)
     import commands.upgrades as upgrades_mod
+
     monkeypatch.setattr(upgrades_mod, "ensure_user", utils.ensure_user)
     monkeypatch.setattr(upgrades_mod, "save_user_data", utils.save_user_data)
     monkeypatch.setattr(upgrades_mod, "consume_requirements", utils.consume_requirements)
@@ -41,6 +42,7 @@ async def test_upgrade_persists_deduction(fresh_db, monkeypatch):
 
     # Create mock interaction and UpgradeView
     from commands.upgrades import UpgradeView
+
     view = UpgradeView(user_id)
     view.category = "clover"
     # Page index for clover_gain
@@ -87,9 +89,7 @@ async def test_clover_incremental_calculation_no_retroactive_nor_lockout(fresh_d
     # 1. Roll with overclock potion active (clover_mult = 2.0), batch of 10 rolls
     # Triggers: (50010 // 10) - (50000 // 10) = 1 trigger.
     # Expected clovers awarded: 1 * 1.0 * 2.0 = 2 clovers (NOT 5,000!)
-    updated = await utils.update_user_data(
-        user_id, ["Common"] * 10, action="keep", clover_mult=2.0
-    )
+    updated = await utils.update_user_data(user_id, ["Common"] * 10, action="keep", clover_mult=2.0)
     assert updated["roll_count"] == 50010
     assert updated["clovers_earned"] == 5002
     assert updated["currencies"]["clovers"] == 5002
@@ -253,6 +253,7 @@ async def test_craft_command_exceed_cap_protection(fresh_db, monkeypatch):
 
     monkeypatch.setattr(utils, "db", fresh_db)
     import database as db_mod
+
     monkeypatch.setattr(db_mod, "db", fresh_db)
 
     bot_mock = MagicMock()
@@ -461,7 +462,9 @@ async def test_vision_payload_sanitization_and_routing():
         mock_direct.return_value = {"choices": [{"message": {"content": "gemini-3.5-flash-lite"}}]}
 
         # When image_url is present, preferred non-vision model should be bypassed in favor of router
-        chosen = await main_mod.choose_model("Look at this", user_params=user_params, image_url="https://example.com/pic.png")
+        chosen = await main_mod.choose_model(
+            "Look at this", user_params=user_params, image_url="https://example.com/pic.png"
+        )
         assert chosen.get("vision") is True
 
         # Check router prompt contains [Vision] tag for vision-capable models
@@ -476,6 +479,7 @@ async def test_vision_payload_sanitization_and_routing():
 async def test_regeneration_history_and_context_resolution(fresh_db, monkeypatch):
     """Verifies that get_context_for_message skips duplicate assistant entries and finds the true user prompt."""
     import utils
+
     monkeypatch.setattr(utils, "db", fresh_db)
 
     user_id = "user_regen_test"
@@ -483,14 +487,25 @@ async def test_regeneration_history_and_context_resolution(fresh_db, monkeypatch
 
     # Insert conversation: User -> Assistant 1 -> (stale duplicate) Assistant 2
     await utils.append_message_for_context(
-        user_id, False, "user", "What is the capital of France?", guild_id=guild_id, message_ids=[1001], author_id=user_id
+        user_id,
+        False,
+        "user",
+        "What is the capital of France?",
+        guild_id=guild_id,
+        message_ids=[1001],
+        author_id=user_id,
     )
     await utils.append_message_for_context(
         user_id, False, "assistant", "Paris is the capital.", guild_id=guild_id, message_ids=[1002]
     )
     # Simulate a corrupted duplicate assistant message
     await utils.append_message_for_context(
-        user_id, False, "assistant", "Duplicate response without user prompt.", guild_id=guild_id, message_ids=[1003]
+        user_id,
+        False,
+        "assistant",
+        "Duplicate response without user prompt.",
+        guild_id=guild_id,
+        message_ids=[1003],
     )
 
     # Request context for message 1003
@@ -506,11 +521,11 @@ async def test_regeneration_history_and_context_resolution(fresh_db, monkeypatch
     assert updated is True
 
     # Verify history count did not increase
-    history = await fresh_db.get_messages_for_context(guild_id=guild_id, limit=20, include_internal=True)
+    history = await fresh_db.get_messages_for_context(
+        guild_id=guild_id, limit=20, include_internal=True
+    )
     # Should have 3 messages total: 1 user + 2 assistant
     assert len(history) == 3
     updated_row = next(m for m in history if 1002 in m["message_ids"])
     assert updated_row["content"] == "Paris is indeed the capital."
     assert 1004 in updated_row["message_ids"]
-
-

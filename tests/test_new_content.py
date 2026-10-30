@@ -51,7 +51,9 @@ def test_all_biome_rarities_exist_in_raritylist():
     for biome_id, defn in BIOMES.items():
         assert defn["rarities"], f"Biome {biome_id} has no rarities"
         for rid in defn["rarities"]:
-            assert rid in RARITY_ID_TO_NAME, f"Biome {biome_id} references unknown rarity ID '{rid}'"
+            assert rid in RARITY_ID_TO_NAME, (
+                f"Biome {biome_id} references unknown rarity ID '{rid}'"
+            )
 
 
 def test_biome_trigger_and_expiration():
@@ -294,4 +296,3 @@ async def test_pit_view_interactive_sacrifice_flow(tmp_path):
     finally:
         await db.close()
         db.db_path = old_path
-

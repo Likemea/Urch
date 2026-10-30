@@ -47,6 +47,7 @@ SIM_OUTPUT_DIR = os.path.join(PROJECT_ROOT, ".sim_output")
 
 # Load .env if present; supply safe dummy defaults for offline simulation
 from dotenv import load_dotenv
+
 load_dotenv(dotenv_path=os.path.join(PROJECT_ROOT, ".env"))
 
 MOCK_ENV_DEFAULTS = {
@@ -68,6 +69,7 @@ from database import db
 # ─────────────────────────────────────────────────────────────────────────────
 # Terminal Box & Embed Renderer
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _wrap_text(text: str, max_len: int = 68) -> List[str]:
     """Wrap a block of text into lines no longer than max_len."""
@@ -101,12 +103,14 @@ def _format_size(num_bytes: int) -> str:
         return f"{num_bytes / (1024 * 1024):.2f} MB"
 
 
-def render_response(content: Optional[str] = None,
-                    embed: Optional[discord.Embed] = None,
-                    embeds: Optional[List[discord.Embed]] = None,
-                    view: Optional[discord.ui.View] = None,
-                    file: Optional[discord.File] = None,
-                    files: Optional[List[discord.File]] = None) -> None:
+def render_response(
+    content: Optional[str] = None,
+    embed: Optional[discord.Embed] = None,
+    embeds: Optional[List[discord.Embed]] = None,
+    view: Optional[discord.ui.View] = None,
+    file: Optional[discord.File] = None,
+    files: Optional[List[discord.File]] = None,
+) -> None:
     """Renders messages, embeds, files, and interactive view components to terminal."""
     target_embeds = list(embeds) if embeds else ([embed] if embed else [])
     target_files = list(files) if files else ([file] if file else [])
@@ -181,10 +185,12 @@ def render_response(content: Optional[str] = None,
 # Simulation Session & Mock Objects
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _create_sample_png() -> bytes:
     """Generates a small in-memory sample PNG image for testing attachments."""
     try:
         from PIL import Image, ImageDraw
+
         img = Image.new("RGB", (96, 96), color=(50, 100, 150))
         draw = ImageDraw.Draw(img)
         draw.rectangle([10, 10, 85, 85], outline=(255, 255, 255), width=2)
@@ -204,7 +210,12 @@ def _create_sample_png() -> bytes:
 class MockAttachment:
     """Mock discord.Attachment supporting local files or synthetic test images."""
 
-    def __init__(self, filename: str = "sample.png", data: Optional[Union[bytes, str]] = None, content_type: str = "image/png"):
+    def __init__(
+        self,
+        filename: str = "sample.png",
+        data: Optional[Union[bytes, str]] = None,
+        content_type: str = "image/png",
+    ):
         self.filename = filename
         self.content_type = content_type
 
@@ -301,6 +312,7 @@ class SimulationSession:
         try:
             from rate_limiter import rate_limiter
             from safeguard import check_safeguard
+
             bot_rate_limiter = rate_limiter
             bot_check_safeguard = check_safeguard
         except Exception:
@@ -330,7 +342,9 @@ class SimulationSession:
                         print(f"⚠️  Could not load {mod_name}: {err}")
 
         self.initialized = True
-        print(f"✅ Loaded {count} extensions. Session ready as {self.user.name} (ID: {self.user.id}).")
+        print(
+            f"✅ Loaded {count} extensions. Session ready as {self.user.name} (ID: {self.user.id})."
+        )
 
     def create_interaction(self, command: Optional[Any] = None) -> discord.Interaction:
         """Creates a mock discord.Interaction wired into this session's state."""
@@ -347,14 +361,30 @@ class SimulationSession:
             nonlocal response_done
             response_done = True
 
-        async def send_message(content=None, embed=None, embeds=None, view=None, file=None, files=None, ephemeral=False, **kwargs):
+        async def send_message(
+            content=None,
+            embed=None,
+            embeds=None,
+            view=None,
+            file=None,
+            files=None,
+            ephemeral=False,
+            **kwargs,
+        ):
             nonlocal response_done
             response_done = True
             self.current_content = content
             self.current_embed = embed
             if view is not None:
                 self.current_view = view
-            render_response(content=content, embed=embed, embeds=embeds, view=self.current_view, file=file, files=files)
+            render_response(
+                content=content,
+                embed=embed,
+                embeds=embeds,
+                view=self.current_view,
+                file=file,
+                files=files,
+            )
 
         async def edit_message(content=None, embed=None, embeds=None, view=None, **kwargs):
             nonlocal response_done
@@ -365,23 +395,51 @@ class SimulationSession:
                 self.current_embed = embed
             if view is not None:
                 self.current_view = view
-            render_response(content=self.current_content, embed=self.current_embed, embeds=embeds, view=self.current_view)
+            render_response(
+                content=self.current_content,
+                embed=self.current_embed,
+                embeds=embeds,
+                view=self.current_view,
+            )
 
-        async def followup_send(content=None, embed=None, embeds=None, view=None, file=None, files=None, ephemeral=False, **kwargs):
+        async def followup_send(
+            content=None,
+            embed=None,
+            embeds=None,
+            view=None,
+            file=None,
+            files=None,
+            ephemeral=False,
+            **kwargs,
+        ):
             self.current_content = content
             self.current_embed = embed
             if view is not None:
                 self.current_view = view
-            render_response(content=content, embed=embed, embeds=embeds, view=self.current_view, file=file, files=files)
+            render_response(
+                content=content,
+                embed=embed,
+                embeds=embeds,
+                view=self.current_view,
+                file=file,
+                files=files,
+            )
 
-        async def edit_original_response(content=None, embed=None, embeds=None, view=None, **kwargs):
+        async def edit_original_response(
+            content=None, embed=None, embeds=None, view=None, **kwargs
+        ):
             if content is not None:
                 self.current_content = content
             if embed is not None:
                 self.current_embed = embed
             if view is not None:
                 self.current_view = view
-            render_response(content=self.current_content, embed=self.current_embed, embeds=embeds, view=self.current_view)
+            render_response(
+                content=self.current_content,
+                embed=self.current_embed,
+                embeds=embeds,
+                view=self.current_view,
+            )
 
         inter.response.defer = AsyncMock(side_effect=defer)
         inter.response.send_message = AsyncMock(side_effect=send_message)
@@ -419,7 +477,9 @@ class SimulationSession:
             for child in children:
                 lbl = getattr(child, "label", None)
                 emoji = getattr(child, "emoji", None)
-                if (lbl and clean_target in lbl.lower()) or (emoji and clean_target in str(emoji).lower()):
+                if (lbl and clean_target in lbl.lower()) or (
+                    emoji and clean_target in str(emoji).lower()
+                ):
                     target_child = child
                     break
 
@@ -431,7 +491,9 @@ class SimulationSession:
             return
 
         if getattr(target_child, "disabled", False):
-            print(f"⚠️  Button '{getattr(target_child, 'label', target_arg)}' is currently disabled.")
+            print(
+                f"⚠️  Button '{getattr(target_child, 'label', target_arg)}' is currently disabled."
+            )
             return
 
         click_inter = self.create_interaction()
@@ -483,7 +545,9 @@ class SimulationSession:
 
         if cmd_name == "view":
             if self.current_embed or self.current_view or self.current_content:
-                render_response(content=self.current_content, embed=self.current_embed, view=self.current_view)
+                render_response(
+                    content=self.current_content, embed=self.current_embed, view=self.current_view
+                )
             else:
                 print("ℹ️  No active view or embed stored in session.")
             return
@@ -505,7 +569,9 @@ class SimulationSession:
                 await self._invoke_app_command(sub_cmd, args)
                 return
             else:
-                print(f"ℹ️  '{cmd_name}' is a command group. Subcommands: {[c.name for c in matched_cmd.commands]}")
+                print(
+                    f"ℹ️  '{cmd_name}' is a command group. Subcommands: {[c.name for c in matched_cmd.commands]}"
+                )
                 return
 
         if matched_cmd and isinstance(matched_cmd, app_commands.Command):
@@ -549,7 +615,10 @@ class SimulationSession:
 
         # Supply smart mock defaults for required attachment parameters if not provided
         for param in positional_params:
-            if param.name not in kwargs and getattr(param, "type", None) == discord.AppCommandOptionType.attachment:
+            if (
+                param.name not in kwargs
+                and getattr(param, "type", None) == discord.AppCommandOptionType.attachment
+            ):
                 if param.required:
                     kwargs[param.name] = MockAttachment()
 
@@ -572,12 +641,16 @@ class SimulationSession:
             self.current_embed = embed
             if view:
                 self.current_view = view
-            render_response(content=content, embed=embed, view=self.current_view, file=file, files=files)
+            render_response(
+                content=content, embed=embed, view=self.current_view, file=file, files=files
+            )
 
         ctx.send = AsyncMock(side_effect=send)
 
         try:
-            await cmd.callback(cmd.cog, ctx, *raw_args) if cmd.cog else await cmd.callback(ctx, *raw_args)
+            await cmd.callback(cmd.cog, ctx, *raw_args) if cmd.cog else await cmd.callback(
+                ctx, *raw_args
+            )
         except Exception as e:
             print(f"❌ Error executing prefix command '{cmd.name}': {type(e).__name__}: {e}")
 
@@ -589,11 +662,19 @@ class SimulationSession:
         choices = getattr(param, "choices", None)
         if choices:
             matched = next(
-                (c for c in choices if c.name.lower() == val.lower() or str(c.value).lower() == val.lower()),
-                None
+                (
+                    c
+                    for c in choices
+                    if c.name.lower() == val.lower() or str(c.value).lower() == val.lower()
+                ),
+                None,
             )
             cb = getattr(getattr(param, "command", None), "_callback", None)
-            ann = cb.__annotations__.get(param.name) if cb and hasattr(cb, "__annotations__") else None
+            ann = (
+                cb.__annotations__.get(param.name)
+                if cb and hasattr(cb, "__annotations__")
+                else None
+            )
             wants_choice = ann is not None and "Choice" in str(ann)
 
             if wants_choice:
@@ -634,7 +715,9 @@ class SimulationSession:
                 sub = ", ".join(c.name for c in cmd.commands)
                 print(f"  /{cmd.name:<15} (Group: {sub})")
             elif hasattr(cmd, "parameters"):
-                p_str = " ".join(f"<{p.name}>" if p.required else f"[{p.name}]" for p in cmd.parameters)
+                p_str = " ".join(
+                    f"<{p.name}>" if p.required else f"[{p.name}]" for p in cmd.parameters
+                )
                 print(f"  /{cmd.name:<15} {p_str}")
         print("=" * 65 + "\n")
 
@@ -642,6 +725,7 @@ class SimulationSession:
 # ─────────────────────────────────────────────────────────────────────────────
 # Main Entry Point & REPL Loop
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def main():
     session = SimulationSession()
@@ -652,6 +736,7 @@ async def main():
         print("\nCleaning up resources...")
         try:
             from providers import close_session
+
             await close_session()
         except Exception:
             pass

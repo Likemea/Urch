@@ -105,6 +105,7 @@ class UpgradeView(discord.ui.View):
         upgrade_def = category_dict[key]
 
         from database import db
+
         async with db.lock_user(self.user_id):
             user = await ensure_user(self.user_id)
             if user.get("upgrades") is None:
@@ -167,6 +168,7 @@ class UpgradeView(discord.ui.View):
         upgrade_def = category_dict[key]
 
         from database import db
+
         async with db.lock_user(self.user_id):
             user = await ensure_user(self.user_id)
             if user.get("upgrades") is None:

@@ -138,9 +138,7 @@ class GlitchCommand(commands.Cog):
             return
 
         if image.size and image.size > MAX_FILE_SIZE:
-            await interaction.followup.send(
-                "❌ File size exceeds the 8MB limit.", ephemeral=True
-            )
+            await interaction.followup.send("❌ File size exceeds the 8MB limit.", ephemeral=True)
             return
 
         is_gif = image.filename.lower().endswith(".gif")

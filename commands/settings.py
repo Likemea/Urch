@@ -53,7 +53,9 @@ class SettingsCommand(commands.Cog):
                     val_str = "None (Disabled)"
                 else:
                     enabled = [x.strip() for x in str(v).split(",") if x.strip()]
-                    val_str = f"{len(enabled)}/{len(AVAILABLE_TOOLS)} enabled ({', '.join(enabled)})"
+                    val_str = (
+                        f"{len(enabled)}/{len(AVAILABLE_TOOLS)} enabled ({', '.join(enabled)})"
+                    )
             else:
                 val_str = str(v)
 
@@ -461,9 +463,7 @@ class AdvancedSettingsView(discord.ui.View):
         chunks = get_model_page_data()
         self.model_page = max(0, min(self.model_page, len(chunks) - 1))
 
-        self.add_item(
-            ModelSelect(self.user_id, params.get("model", "Auto"), page=self.model_page)
-        )
+        self.add_item(ModelSelect(self.user_id, params.get("model", "Auto"), page=self.model_page))
         self.add_item(ReasoningSelect(self.user_id, params.get("reasoning", "none")))
         self.add_item(ToolingSelect(self.user_id, params.get("tooling", "Auto")))
 

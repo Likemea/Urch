@@ -128,7 +128,10 @@ async def run_agent_loop(
 
     reasoning_val = user_params.get("reasoning", "none")
     if model_info.get("reasoning_effort"):
-        if model_info.get("id") in ["openai/gpt-oss-20b", "openai/gpt-oss-120b"] and reasoning_val == "none":
+        if (
+            model_info.get("id") in ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+            and reasoning_val == "none"
+        ):
             # Groq's gpt-oss models only accept low/medium/high and reject "none"
             pass
         else:

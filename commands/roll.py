@@ -69,7 +69,10 @@ class ButtonView(discord.ui.View):
             all_rolls = await roll_rarities(self.user_id, count=total_rolls, provided_luck=luck)
             all_rolls, duped_rolls = apply_dupe_buff(all_rolls, buff_data)
             updated_user = await update_user_data(
-                self.user_id, all_rolls, action="keep", clover_mult=buff_data.get("clover_mult", 1.0)
+                self.user_id,
+                all_rolls,
+                action="keep",
+                clover_mult=buff_data.get("clover_mult", 1.0),
             )
             if not updated_user:
                 updated_user = user
@@ -89,9 +92,7 @@ class ButtonView(discord.ui.View):
         )
         if duped_rolls:
             dupe_counts = Counter(duped_rolls)
-            dupe_str = ", ".join(
-                f"x{c} {r}" if c > 1 else r for r, c in dupe_counts.items()
-            )
+            dupe_str = ", ".join(f"x{c} {r}" if c > 1 else r for r, c in dupe_counts.items())
             summary += f"\n\n🧬 **Duped!** (+{dupe_str})"
 
         new_roll_count = updated_user.get("roll_count", user.get("roll_count", 0))
@@ -191,9 +192,7 @@ class RollCommand(commands.Cog):
         )
         if duped_rolls:
             dupe_counts = Counter(duped_rolls)
-            dupe_str = ", ".join(
-                f"x{c} {r}" if c > 1 else r for r, c in dupe_counts.items()
-            )
+            dupe_str = ", ".join(f"x{c} {r}" if c > 1 else r for r, c in dupe_counts.items())
             summary += f"\n\n🧬 **Duped!** (+{dupe_str})"
 
         roll_count = updated_user.get("roll_count", user.get("roll_count", 0))

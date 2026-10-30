@@ -20,9 +20,7 @@ RARITY_NAME_TO_ID: Dict[str, str] = {r[0]: r[2] for r in RARITIES}
 RARITY_NAME_TO_ONE_IN: Dict[str, float] = {
     r[0]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES
 }
-RARITY_ID_TO_ONE_IN: Dict[str, float] = {
-    r[2]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES
-}
+RARITY_ID_TO_ONE_IN: Dict[str, float] = {r[2]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES}
 
 QUANTITY_MODES = [
     ("keep_one", "🛡️ Mode: Keep 1"),
@@ -147,9 +145,7 @@ class PitRaritySelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.pit_view.user_id:
-            return await interaction.response.send_message(
-                "This isn't your menu.", ephemeral=True
-            )
+            return await interaction.response.send_message("This isn't your menu.", ephemeral=True)
 
         # Update selected_ids for items on the current page while preserving other pages
         page_rids = {
@@ -163,7 +159,9 @@ class PitRaritySelect(discord.ui.Select):
 
         self.pit_view.last_result_banner = None
         self.pit_view.rebuild_components()
-        await interaction.response.edit_message(embed=self.pit_view.format_embed(), view=self.pit_view)
+        await interaction.response.edit_message(
+            embed=self.pit_view.format_embed(), view=self.pit_view
+        )
 
 
 class PitView(discord.ui.View):
@@ -268,9 +266,7 @@ class PitView(discord.ui.View):
         self.add_item(next_btn)
 
         sort_label = "🔽 Sort: Lowest First" if self.sort_ascending else "🔼 Sort: Highest First"
-        sort_btn = discord.ui.Button(
-            label=sort_label, style=discord.ButtonStyle.secondary, row=1
-        )
+        sort_btn = discord.ui.Button(label=sort_label, style=discord.ButtonStyle.secondary, row=1)
         sort_btn.callback = self.on_toggle_sort
         self.add_item(sort_btn)
 
@@ -319,9 +315,7 @@ class PitView(discord.ui.View):
         if self.last_result_banner:
             desc_parts.append(self.last_result_banner)
 
-        desc_parts.append(
-            "Combine excess rarities to fuse into the closest matching rarity."
-        )
+        desc_parts.append("Combine excess rarities to fuse into the closest matching rarity.")
 
         embed = discord.Embed(
             title="🕳️ The Pit",
@@ -385,9 +379,7 @@ class PitView(discord.ui.View):
 
     async def _check_owner(self, interaction: discord.Interaction) -> bool:
         if str(interaction.user.id) != self.user_id:
-            await interaction.response.send_message(
-                "This isn't your menu.", ephemeral=True
-            )
+            await interaction.response.send_message("This isn't your menu.", ephemeral=True)
             return False
         return True
 
@@ -474,9 +466,7 @@ class PitView(discord.ui.View):
             single_sac_name = (
                 next(iter(actual_deductions.keys())) if len(actual_deductions) == 1 else None
             )
-            match = find_closest_rarity_for_value(
-                total_value, exclude_single_same=single_sac_name
-            )
+            match = find_closest_rarity_for_value(total_value, exclude_single_same=single_sac_name)
             if not match:
                 return await interaction.response.send_message(
                     "❌ Combined rarity value is too low to fuse.", ephemeral=True
@@ -529,9 +519,7 @@ class PitCommand(commands.Cog):
         user = await get_user_data(user_id)
         inventory = (user or {}).get("inventory") or {}
 
-        valid_items = {
-            k: v for k, v in inventory.items() if v > 0 and k in RARITY_INDEX_MAP
-        }
+        valid_items = {k: v for k, v in inventory.items() if v > 0 and k in RARITY_INDEX_MAP}
         if not valid_items:
             return await interaction.response.send_message(
                 "🕳️ Your inventory is empty! Roll some rarities with `/roll` before visiting The Pit.",
@@ -545,4 +533,3 @@ class PitCommand(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(PitCommand(bot))
-

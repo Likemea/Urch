@@ -308,4 +308,3 @@ async def test_image_gen_and_audio_gen_reject_oversized_responses():
         aud_res = await generate_audio("test speech")
         assert aud_res is None
         mock_resp_aud.content.read.assert_awaited_once_with(MAX_AUDIO_BYTES + 1)
-

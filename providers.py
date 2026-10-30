@@ -366,7 +366,10 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
     if clean.get("reasoning_effort") in ("Auto", "auto"):
         clean.pop("reasoning_effort", None)
 
-    if clean.get("model") in ["openai/gpt-oss-20b", "openai/gpt-oss-120b"] and clean.get("reasoning_effort") == "none":
+    if (
+        clean.get("model") in ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+        and clean.get("reasoning_effort") == "none"
+    ):
         clean.pop("reasoning_effort", None)
 
     # sanitize message history based on tool & vision capability
@@ -393,9 +396,7 @@ def sanitize_payload(payload: dict, caps: dict) -> dict:
                         elif part.get("type") == "image_url" or "image_url" in part:
                             img_info = part.get("image_url", {})
                             url = (
-                                img_info.get("url")
-                                if isinstance(img_info, dict)
-                                else str(img_info)
+                                img_info.get("url") if isinstance(img_info, dict) else str(img_info)
                             )
                             if url:
                                 text_pieces.append(f"[Image: {url}]")

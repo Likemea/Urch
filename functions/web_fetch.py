@@ -88,9 +88,7 @@ class _SafePinnedResolver(aiohttp.abc.AbstractResolver):
     def __init__(self, pinned: dict[tuple[str, int], list[dict]]):
         self._pinned = pinned
 
-    async def resolve(
-        self, host: str, port: int = 0, family: int = socket.AF_UNSPEC
-    ) -> list[dict]:
+    async def resolve(self, host: str, port: int = 0, family: int = socket.AF_UNSPEC) -> list[dict]:
         key = (host.lower(), port)
         if key in self._pinned and self._pinned[key]:
             return self._pinned[key]

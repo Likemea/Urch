@@ -29,9 +29,7 @@ class TTSCommand(commands.Cog):
         voice="The voice to use for speech",
         speed="Speaker speed (0.25 to 4.0, default 1.0)",
     )
-    @app_commands.choices(
-        voice=[app_commands.Choice(name=name, value=val) for name, val in VOICES]
-    )
+    @app_commands.choices(voice=[app_commands.Choice(name=name, value=val) for name, val in VOICES])
     async def tts(
         self,
         interaction: discord.Interaction,
@@ -55,7 +53,9 @@ class TTSCommand(commands.Cog):
 
         clean_text = text.strip()
         if not clean_text:
-            await interaction.followup.send("❌ Please provide text to convert to speech.", ephemeral=True)
+            await interaction.followup.send(
+                "❌ Please provide text to convert to speech.", ephemeral=True
+            )
             return
 
         safeguard_func = getattr(self.bot, "check_safeguard", check_safeguard)

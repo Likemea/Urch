@@ -398,9 +398,7 @@ class Database:
                 "SELECT currency_type, amount FROM user_currencies WHERE user_id = ?", (user_id,)
             ) as cursor:
                 return {
-                    row["currency_type"]: row["amount"]
-                    async for row in cursor
-                    if row["amount"] > 0
+                    row["currency_type"]: row["amount"] async for row in cursor if row["amount"] > 0
                 }
 
     async def get_user_data(self, user_id: str) -> Optional[Dict[str, Any]]:

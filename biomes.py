@@ -336,4 +336,3 @@ def format_active_biome_banner(now: Optional[float] = None) -> Optional[str]:
     mult_val = active["multiplier"]
     mult_str = f"x{int(mult_val)}" if float(mult_val).is_integer() else f"x{mult_val:.1f}"
     return f"{active['emoji']} {active['name']} ({mult_str} • {time_str})"
-

@@ -57,36 +57,28 @@ class BiomeBrowserView(discord.ui.View):
 
     async def switch_to_browse(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message(
-                "This isn't your menu.", ephemeral=True
-            )
+            return await interaction.response.send_message("This isn't your menu.", ephemeral=True)
         self.mode = "browse"
         self.update_buttons()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
     async def switch_to_status(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message(
-                "This isn't your menu.", ephemeral=True
-            )
+            return await interaction.response.send_message("This isn't your menu.", ephemeral=True)
         self.mode = "status"
         self.update_buttons()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
     async def prev_page(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message(
-                "This isn't your menu.", ephemeral=True
-            )
+            return await interaction.response.send_message("This isn't your menu.", ephemeral=True)
         self.page = (self.page - 1) % len(self.biome_keys)
         self.update_buttons()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
     async def next_page(self, interaction: discord.Interaction):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message(
-                "This isn't your menu.", ephemeral=True
-            )
+            return await interaction.response.send_message("This isn't your menu.", ephemeral=True)
         self.page = (self.page + 1) % len(self.biome_keys)
         self.update_buttons()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
@@ -121,9 +113,7 @@ class BiomeBrowserView(discord.ui.View):
                     value=rarities_text,
                     inline=False,
                 )
-                embed.set_footer(
-                    text="Applies to /roll and /autoroll"
-                )
+                embed.set_footer(text="Applies to /roll and /autoroll")
                 return embed
             else:
                 next_ts = get_next_biome_timestamp()
@@ -185,4 +175,3 @@ class BiomeCommand(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(BiomeCommand(bot))
-
