@@ -35,7 +35,7 @@ jobs:
           # Bug-class rules only: syntax errors, undefined names, invalid comparisons.
           ruff check . --select E9,F63,F7,F82
 
-      - name: Run Test Suite (Phases 1 & 2)
+      - name: Run Test Suite
         env:
           PYTHONPATH: .
           APPLICATION_ID: "123456789012345678"
@@ -43,17 +43,7 @@ jobs:
           GROQ_API_KEY: "dummy_key"
           POLLINATIONS_API_KEY: "dummy_key"
           GOOGLE_API_KEY: "dummy_key"
-        run: 
-          pytest -q -x \
-            tests/test_phase1.py \
-            tests/test_phase2.py \
-            tests/test_audit_batch1_bugs.py \
-            tests/test_audit_bugs_1_to_11.py \
-            tests/test_audit_critical_high_1_to_4.py \
-            tests/test_audit_fixes.py \
-            tests/test_audit_items_1_2_15.py \
-            tests/test_backup.py \
-            tests/test_new_content.py
+        run: pytest -q -x
 
   deploy:
     needs: quality-check
@@ -168,16 +158,16 @@ jobs:
             read -r _ BASE_RESTARTS _ <<< "$(pm2_state)"
 
             # 4. Health check: must stay online AND not restart again
-            echo "Watching $APP_NAME for${STABLE_SECS}s..."
+            echo "Watching $APP_NAME for ${STABLE_SECS}s..."
             for _ in $(seq 1 $((STABLE_SECS / 5))); do
               sleep 5
               read -r STATUS RESTARTS UPTIME <<< "$(pm2_state)"
               if [ "$STATUS" != "online" ] || [ "$RESTARTS" -gt "$BASE_RESTARTS" ]; then
-                echo "::error::Unhealthy: status=$STATUS, restarts=$RESTARTS (baseline$BASE_RESTARTS)"
+                echo "::error::Unhealthy: status=$STATUS, restarts=$RESTARTS (baseline $BASE_RESTARTS)"
                 false   # triggers ERR trap -> rollback
               fi
             done
 
             trap - ERR
             pm2 save
-            echo "✅ ${TARGET_SHA:0:7}; $APP_NAME OK (up${UPTIME}s)."
+            echo "✅ ${TARGET_SHA:0:7}; $APP_NAME OK (up ${UPTIME}s)."
