@@ -1,31 +1,20 @@
 # tests/test_audit_critical_high_1_to_4.py
 import asyncio
-import io
 import os
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
-import discord
 
-import utils
-from commands.diagnose import DiagnoseCommand, _render_diagnostics_sync
+import discord
+import pytest
+
 from commands.safety import OWNER_ID
-from commands.leaderboard import LeaderboardView
-from commands.filter import FilterCommand, MAX_AVATAR_BYTES
-from commands.transcribe import (
-    process_transcription,
-    transcribe_audio_from_bytes,
-    MAX_FILE_SIZE,
-)
+from functions.audio_gen import MAX_AUDIO_BYTES, generate_audio
+from functions.image_gen import MAX_IMAGE_BYTES, generate_image
 from functions.web_fetch import (
     _is_safe_ip,
+    _pinned_dns_var,
     _resolve_and_check_url,
     _SafePinnedResolver,
-    _pinned_dns_var,
-    fetch_webpage,
 )
-from functions.image_gen import generate_image, MAX_IMAGE_BYTES
-from functions.audio_gen import generate_audio, MAX_AUDIO_BYTES
 
 
 # ─────────────────────────────────────────────────────────────
@@ -33,8 +22,10 @@ from functions.audio_gen import generate_audio, MAX_AUDIO_BYTES
 # ─────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_diagnose_restricted_to_owner():
+    import commands.diagnose as diagnose_module
+
     bot = MagicMock()
-    cog = DiagnoseCommand(bot)
+    cog = diagnose_module.DiagnoseCommand(bot)
 
     interaction = MagicMock(spec=discord.Interaction)
     interaction.user.id = 999999999  # Not OWNER_ID
@@ -50,10 +41,12 @@ async def test_diagnose_restricted_to_owner():
 
 @pytest.mark.asyncio
 async def test_diagnose_prevents_concurrent_runs_and_uses_to_thread():
+    import commands.diagnose as diagnose_module
+
     bot = MagicMock()
     bot.latency = 0.05
     bot.rate_limiter = None
-    cog = DiagnoseCommand(bot)
+    cog = diagnose_module.DiagnoseCommand(bot)
 
     # 1. Simulate lock already held -> rejects concurrent run
     async with cog._lock:
@@ -70,13 +63,14 @@ async def test_diagnose_prevents_concurrent_runs_and_uses_to_thread():
     int_owner.response.defer = AsyncMock()
     int_owner.followup.send = AsyncMock()
 
-    with patch(
-        "commands.diagnose.asyncio.to_thread",
+    with patch.object(
+        diagnose_module.asyncio,
+        "to_thread",
         wraps=asyncio.to_thread,
     ) as spy_to_thread:
         await cog.diagnose.callback(cog, int_owner, duration=1)
         spy_to_thread.assert_called_once()
-        assert spy_to_thread.call_args.args[0] is _render_diagnostics_sync
+        assert spy_to_thread.call_args.args[0] is diagnose_module._render_diagnostics_sync
         int_owner.followup.send.assert_awaited_once()
 
 
@@ -176,8 +170,10 @@ async def test_database_nested_transaction_savepoints_and_read_serialization(fre
     assert "tx_user" not in read_observed
 
     # 3. Leaderboard and stats queries execute safely under db._lock
+    import commands.leaderboard as leaderboard_module
+
     bot = MagicMock()
-    view = LeaderboardView(bot)
+    view = leaderboard_module.LeaderboardView(bot)
     lb_data = await view.get_leaderboard_data()
     assert any(uid == "tx_user" for uid, _ in lb_data)
 
@@ -190,8 +186,10 @@ async def test_database_nested_transaction_savepoints_and_read_serialization(fre
 # ─────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_filter_rejects_oversized_avatar():
+    import commands.filter as filter_module
+
     bot = MagicMock()
-    cog = FilterCommand(bot)
+    cog = filter_module.FilterCommand(bot)
 
     interaction = MagicMock(spec=discord.Interaction)
     interaction.user = MagicMock()
@@ -201,13 +199,16 @@ async def test_filter_rejects_oversized_avatar():
 
     mock_resp = MagicMock()
     mock_resp.status = 200
-    mock_resp.content_length = MAX_AVATAR_BYTES + 1024
+    mock_resp.content_length = filter_module.MAX_AVATAR_BYTES + 1024
 
     mock_session = MagicMock()
     mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_resp)
     mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("commands.filter.get_session", AsyncMock(return_value=mock_session)):
+    with (
+        patch.object(filter_module, "get_session", AsyncMock(return_value=mock_session)),
+        patch("providers.get_session", AsyncMock(return_value=mock_session)),
+    ):
         choice = MagicMock()
         choice.value = "blur"
         await cog.filter.callback(cog, interaction, style=choice, user=None)
@@ -217,6 +218,8 @@ async def test_filter_rejects_oversized_avatar():
 
 @pytest.mark.asyncio
 async def test_transcribe_streams_bounded_and_cleans_up_tempfile():
+    import commands.transcribe as transcribe_module
+
     interaction = MagicMock(spec=discord.Interaction)
     interaction.followup.send = AsyncMock()
 
@@ -227,7 +230,7 @@ async def test_transcribe_streams_bounded_and_cleans_up_tempfile():
 
     # Case 1: Server streams more than MAX_FILE_SIZE despite small attachment.size
     async def oversized_chunks(_chunk_size):
-        yield b"x" * (MAX_FILE_SIZE + 10)
+        yield b"x" * (transcribe_module.MAX_FILE_SIZE + 10)
 
     mock_resp_over = MagicMock()
     mock_resp_over.status = 200
@@ -238,8 +241,11 @@ async def test_transcribe_streams_bounded_and_cleans_up_tempfile():
     mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_resp_over)
     mock_session.get.return_value.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("commands.transcribe.get_session", AsyncMock(return_value=mock_session)):
-        await process_transcription(interaction, attachment)
+    with (
+        patch.object(transcribe_module, "get_session", AsyncMock(return_value=mock_session)),
+        patch("providers.get_session", AsyncMock(return_value=mock_session)),
+    ):
+        await transcribe_module.process_transcription(interaction, attachment)
         interaction.followup.send.assert_awaited_once_with(
             "❌ File size exceeds the 25 MB limit for transcription."
         )
@@ -264,16 +270,21 @@ async def test_transcribe_streams_bounded_and_cleans_up_tempfile():
     mock_session.post.return_value.__aenter__ = AsyncMock(return_value=mock_post_resp)
     mock_session.post.return_value.__aexit__ = AsyncMock(return_value=None)
 
-    orig_transcribe = transcribe_audio_from_bytes
+    orig_transcribe = transcribe_module.transcribe_audio_from_bytes
 
     async def spy_transcribe(source, fname):
         assert isinstance(source, str) and os.path.exists(source)
         recorded_temp_paths.append(source)
         return await orig_transcribe(source, fname)
 
-    with patch("commands.transcribe.get_session", AsyncMock(return_value=mock_session)):
-        with patch("commands.transcribe.transcribe_audio_from_bytes", side_effect=spy_transcribe):
-            await process_transcription(interaction, attachment)
+    with (
+        patch.object(transcribe_module, "get_session", AsyncMock(return_value=mock_session)),
+        patch("providers.get_session", AsyncMock(return_value=mock_session)),
+    ):
+        with patch.object(
+            transcribe_module, "transcribe_audio_from_bytes", side_effect=spy_transcribe
+        ):
+            await transcribe_module.process_transcription(interaction, attachment)
 
     assert len(recorded_temp_paths) == 1
     assert not os.path.exists(recorded_temp_paths[0]), "Temp audio file was not cleaned up!"
