@@ -13,6 +13,7 @@ import asyncio
 import os
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -36,13 +37,20 @@ def backup_database_sync(
     dest = backup_dir / f"{PREFIX}{time.strftime('%Y%m%d_%H%M%S')}.db"
     tmp = dest.with_suffix(".db.tmp")
 
-    with sqlite3.connect(db_path) as src, sqlite3.connect(tmp) as dst:
-        src.backup(dst)
-    tmp.replace(dest)  # atomic: never leave a half-written backup behind
+    try:
+        with closing(sqlite3.connect(db_path)) as src, closing(sqlite3.connect(tmp)) as dst:
+            src.backup(dst)
+        tmp.replace(dest)  # atomic: never leave a half-written backup behind
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
     backups = sorted(backup_dir.glob(f"{PREFIX}*.db"))
     for old in backups[: max(0, len(backups) - keep)]:
         old.unlink(missing_ok=True)
+
+    for stale in backup_dir.glob(f"{PREFIX}*.db.tmp"):
+        stale.unlink(missing_ok=True)
 
     return dest
 
