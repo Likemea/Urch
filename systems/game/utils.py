@@ -21,6 +21,10 @@ TOTAL_RARITIES = len(RARITIES)
 RARITY_RANKS = [idx / max(1, TOTAL_RARITIES - 1) for idx in range(TOTAL_RARITIES)]
 RARITY_INDEX_MAP = {r[0]: idx for idx, r in enumerate(RARITIES)}
 
+LUCK_EXP_MIN = -0.4
+LUCK_EXP_MAX = 1.2
+LUCK_COMMON_MIN_FLOOR = 0.05
+
 
 def resolve_item_key(key: str) -> Tuple[str, str]:
     """
@@ -326,7 +330,16 @@ async def roll_rarities(user_id: str, count: int = 1, provided_luck: float = Non
     if luck <= 1.0:
         weights = list(RARITY_BASE_PROBS)
     else:
-        weights = [p * (luck ** (rank * 1.2)) for p, rank in zip(RARITY_BASE_PROBS, RARITY_RANKS)]
+        exp_range = LUCK_EXP_MAX - LUCK_EXP_MIN
+        weights = [
+            p * (luck ** (LUCK_EXP_MIN + (exp_range * rank)))
+            for p, rank in zip(RARITY_BASE_PROBS, RARITY_RANKS)
+        ]
+
+        other_sum = sum(weights[1:])
+        min_common_weight = (LUCK_COMMON_MIN_FLOOR / (1.0 - LUCK_COMMON_MIN_FLOOR)) * other_sum
+        if weights[0] < min_common_weight:
+            weights[0] = min_common_weight
 
     try:
         from systems.game.biomes import get_active_biome

@@ -3,7 +3,7 @@
 Tests for rolling mechanics, autorolls, currency/inventory routing, and leaderboard views.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import discord
 
@@ -68,6 +68,39 @@ async def test_roll_rarities_high_luck_biases_rarity(fresh_db):
     avg_low = sum(order[r] for r in low) / len(low)
     avg_high = sum(order[r] for r in high) / len(high)
     assert avg_high >= avg_low, f"Luck inversion: low={avg_low:.2f} high={avg_high:.2f}"
+
+
+@pytest.mark.asyncio
+async def test_roll_rarities_weights_decay_and_common_floor(fresh_db):
+    """Verify Common decay and 5% safety floor under scaling luck."""
+    await fresh_db.ensure_user("u_luck_test")
+
+    captured = {}
+    from systems.game import utils
+
+    orig_choices = utils.random.choices
+
+    def spy_choices(population, weights=None, k=1):
+        captured["weights"] = list(weights)
+        return orig_choices(population, weights=weights, k=k)
+
+    with patch("systems.game.utils.random.choices", side_effect=spy_choices):
+        await roll_rarities("u_luck_test", count=1, provided_luck=1.0)
+        assert captured["weights"] == list(utils.RARITY_BASE_PROBS)
+
+    with patch("systems.game.utils.random.choices", side_effect=spy_choices):
+        await roll_rarities("u_luck_test", count=1, provided_luck=1000.0)
+        w1k = captured["weights"]
+        norm1k = [w / sum(w1k) for w in w1k]
+        base_norm = [w / sum(utils.RARITY_BASE_PROBS) for w in utils.RARITY_BASE_PROBS]
+        assert norm1k[0] < base_norm[0]
+        assert norm1k[0] > 0.20
+
+    with patch("systems.game.utils.random.choices", side_effect=spy_choices):
+        await roll_rarities("u_luck_test", count=1, provided_luck=10_000_000_000_000.0)
+        w_extreme = captured["weights"]
+        norm_common = w_extreme[0] / sum(w_extreme)
+        assert abs(norm_common - 0.05) < 1e-6
 
 
 @pytest.mark.asyncio
