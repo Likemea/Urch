@@ -2,11 +2,13 @@ name: Lint, Test, and Deploy Urch
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main", "dev" ]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-prod
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -47,7 +49,7 @@ jobs:
 
   deploy:
     needs: quality-check
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -129,7 +131,7 @@ jobs:
             git fetch --prune origin main
             git cat-file -e "${TARGET_SHA}^{commit}"
 
-            # 2. Only touch pip if requirements.txt actually changed (saves RAM/CPU on the e2-micro).
+            # 2. Only touch pip if requirements.txt actually changed
             if ! git diff --quiet "$PREV_COMMIT" "$TARGET_SHA" -- requirements.txt; then
               REQS_CHANGED=1
             fi

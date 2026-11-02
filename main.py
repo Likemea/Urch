@@ -1,5 +1,5 @@
 # Urch/main.py
-import config
+from systems.core import config
 
 try:
     import uvloop
@@ -11,13 +11,13 @@ import asyncio
 import json
 import os
 import time
-from database import db
-from backup import backup_database
+from systems.core.database import db
+from systems.core.backup import backup_database
 
 import discord
 from discord.ext import commands, tasks
 
-from utils import (
+from systems.game.utils import (
     get_user_ai_params,
     get_messages_for_context,
     append_message_for_context,
@@ -32,14 +32,14 @@ from utils import (
     log_rare_roll,
     log_biome_event,
 )
-from biomes import check_and_advance_biome
-from providers import (
+from systems.game.biomes import check_and_advance_biome
+from systems.ai.providers import (
     MODELS,
     call_model_direct,
     call_provider_stream,
     close_session,
 )
-from agent import run_agent_loop
+from systems.ai.agent import run_agent_loop
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -78,8 +78,8 @@ bot = UrchBot(command_prefix="!", intents=intents)
 async def initialize_database():
     print("Initializing SQLite database...")
     await db.initialize()
-    from rate_limiter import rate_limiter
-    from safeguard import check_safeguard
+    from systems.bot.rate_limiter import rate_limiter
+    from systems.bot.safeguard import check_safeguard
 
     bot.rate_limiter = rate_limiter
     bot.check_safeguard = check_safeguard
@@ -121,9 +121,9 @@ async def build_contextual_system_message(user: discord.User, channel, guild=Non
 # EVENTS
 # ───────────────────────────────
 async def load_extensions():
-    for filename in os.listdir("./commands"):
+    for filename in os.listdir("./systems/bot/commands"):
         if filename.endswith(".py") and filename != "__init__.py":
-            ext = f"commands.{filename[:-3]}"
+            ext = f"systems.bot.commands.{filename[:-3]}"
             if ext not in bot.extensions:
                 await bot.load_extension(ext)
 
@@ -493,7 +493,7 @@ async def handle_streaming_response(
 # ───────────────────────────────
 # SAFEGUARD
 # ───────────────────────────────
-from safeguard import check_safeguard, _SAFEGUARD_CAPS
+from systems.bot.safeguard import check_safeguard, _SAFEGUARD_CAPS
 
 
 # ───────────────────────────────
