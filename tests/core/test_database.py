@@ -22,6 +22,20 @@ async def test_ensure_user_and_get(fresh_db):
     assert data is not None
     assert data["roll_count"] == 0
     assert data["luck_multi"] == 1.0
+    assert data["pit_luck"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_pit_luck_persistence_and_roundtrip(fresh_db):
+    await fresh_db.ensure_user("u_pit")
+    user = await fresh_db.get_user_data("u_pit")
+    assert user["pit_luck"] == 0.0
+
+    user["pit_luck"] = 42500.75
+    await fresh_db.save_user_data("u_pit", user)
+
+    reloaded = await fresh_db.get_user_data("u_pit")
+    assert reloaded["pit_luck"] == 42500.75
 
 
 @pytest.mark.asyncio

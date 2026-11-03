@@ -476,7 +476,7 @@ LUCK_UPGRADES = {
     },
     "pit_luck": {
         "name": "🕳️ Pit Luck",
-        "description": "Converts The Pit's sacrifice value into permanent additive luck.\nHigher tiers reduce the divisor from 1,000,000x down to 1,000x.",
+        "description": "Converts The Pit's sacrifice value into permanent additive luck.\nHigher tiers increase your luck yield multiplier from 0.5x up to 10.0x.",
         "max_tier": 20,
         "requirements": {
             1: {
@@ -729,6 +729,25 @@ LUCK_UPGRADES = {
         "effect": lambda tier, user: {"luck_bonus": float(user.get("pit_luck", 0.0))},
     },
 }
+
+
+def get_pit_luck_multiplier(tier: int) -> float:
+    """Calculates the sacrifice value multiplier for a given Pit Luck tier (1 to 20).
+
+    Tier 1 is 0.5x, scaling by +0.5x per tier up to Tier 20 at 10.0x.
+    """
+    if tier <= 0:
+        return 0.0
+    tier = min(20, max(1, int(tier)))
+    return 0.5 * tier
+
+
+def calculate_pit_luck_gain(total_value: float, tier: int) -> float:
+    """Calculates permanent Pit Luck gained from sacrificing items with combined value."""
+    if tier <= 0 or total_value <= 0:
+        return 0.0
+    mult = get_pit_luck_multiplier(tier)
+    return round((total_value**0.40) * mult, 4)
 
 
 def get_pit_luck_divisor(tier: int) -> float:

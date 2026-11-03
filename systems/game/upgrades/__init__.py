@@ -1,10 +1,14 @@
 # Urch/upgrades/__init__.py
 import math
-from typing import Dict
 
-from .luck_upgrades import LUCK_UPGRADES, get_pit_luck_divisor
-from .roll_upgrades import ROLL_UPGRADES
 from .clover_upgrades import CLOVER_UPGRADES
+from .luck_upgrades import (
+    LUCK_UPGRADES,
+    calculate_pit_luck_gain,
+    get_pit_luck_divisor,
+    get_pit_luck_multiplier,
+)
+from .roll_upgrades import ROLL_UPGRADES
 
 UPGRADE_CATEGORIES = {
     "luck": LUCK_UPGRADES,
@@ -15,7 +19,7 @@ UPGRADE_CATEGORIES = {
 
 def get_upgrade_effect(
     user_id: str, user_obj: dict = None, checklist_exp_bonus: float = 1.0
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Returns combined upgrade-derived modifiers for a user.
     does not fetch from DB.
@@ -136,3 +140,13 @@ def get_upgrade_effect(
                 pass
 
     return effects
+
+
+__all__ = [
+    "UPGRADE_CATEGORIES",
+    "get_upgrade_effect",
+    "LUCK_UPGRADES",
+    "get_pit_luck_divisor",
+    "get_pit_luck_multiplier",
+    "calculate_pit_luck_gain",
+]

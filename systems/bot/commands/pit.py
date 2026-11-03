@@ -1,27 +1,30 @@
 # Urch/commands/pit.py
 import random
-from typing import Dict, List, Optional, Set, Tuple
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from systems.core.database import db
 from systems.game.raritylist import RARITIES
-from systems.game.upgrades.luck_upgrades import get_pit_luck_divisor
+from systems.game.upgrades.luck_upgrades import (
+    calculate_pit_luck_gain,
+    get_pit_luck_multiplier,
+)
 from systems.game.utils import (
-    ensure_user,
-    get_user_data,
-    save_user_data,
-    format_number,
     RARITY_ID_TO_NAME,
     RARITY_INDEX_MAP,
+    ensure_user,
+    format_number,
+    get_user_data,
+    save_user_data,
 )
 
-RARITY_NAME_TO_ID: Dict[str, str] = {r[0]: r[2] for r in RARITIES}
-RARITY_NAME_TO_ONE_IN: Dict[str, float] = {
+RARITY_NAME_TO_ID: dict[str, str] = {r[0]: r[2] for r in RARITIES}
+RARITY_NAME_TO_ONE_IN: dict[str, float] = {
     r[0]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES
 }
-RARITY_ID_TO_ONE_IN: Dict[str, float] = {r[2]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES}
+RARITY_ID_TO_ONE_IN: dict[str, float] = {r[2]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES}
 
 QUANTITY_MODES = [
     ("keep_one", "🛡️ Mode: Keep 1"),
@@ -42,14 +45,53 @@ def calculate_sacrifice_qty(owned: int, mode: str) -> int:
     return owned
 
 
-def find_closest_rarity_for_value(
-    total_value: float, exclude_single_same: Optional[str] = None
-) -> Optional[Tuple[str, float, List[str]]]:
+UNIQUE_TIER_VALUES: list[float] = sorted(
+    list(set(round((1.0 / r[1]), 4) for r in RARITIES if r[1] > 0))
+)
+
+
+def get_fusion_tax_multiplier(target_one_in: float, max_sac_one_in: float | None = None) -> float:
+    """Calculates fusion tax multiplier when aiming for a target rarity tier.
+
+    - Target <= max_sac_one_in: 1.0x (consolidating duplicates / filling gaps)
+    - +1 tier above max_sac: 2.0x
+    - +2 tiers above max_sac: 3.5x
+    - +3 or more tiers above max_sac: 5.0x
     """
-    Finds the highest rarity tier whose 1-in-X value is <= total_value (with float tolerance).
-    If total_value is below the lowest rarity (1 in 2), returns None.
+    if max_sac_one_in is None or max_sac_one_in <= 0:
+        return 1.0
+    if target_one_in <= max_sac_one_in * (1.0 + 1e-6):
+        return 1.0
+
+    target_rounded = round(target_one_in, 4)
+    max_sac_rounded = round(max_sac_one_in, 4)
+    step = 0
+    for v in UNIQUE_TIER_VALUES:
+        if v > max_sac_rounded and v <= target_rounded:
+            step += 1
+
+    if step <= 1:
+        return 2.0
+    elif step == 2:
+        return 3.5
+    else:
+        return 5.0
+
+
+def find_closest_rarity_for_value(
+    total_value: float,
+    max_sac_one_in: float | str | None = None,
+    exclude_single_same: str | None = None,
+) -> tuple[str, float, list[str]] | None:
+    """Finds the highest rarity tier that can be forged from total_value,
+
+    taking into account the fusion tax if forging tiers strictly higher than max_sac_one_in.
     Returns (chosen_rarity_name, tier_one_in, all_tied_names_at_tier).
     """
+    if isinstance(max_sac_one_in, str):
+        exclude_single_same = max_sac_one_in
+        max_sac_one_in = None
+
     if total_value < 2.0 - 1e-9:
         return None
 
@@ -57,11 +99,14 @@ def find_closest_rarity_for_value(
     best_idx = -1
     best_one_in = 0.0
 
-    for idx, (name, prob, _rid) in enumerate(RARITIES):
+    for idx, (_name, prob, _rid) in enumerate(RARITIES):
         one_in = (1.0 / prob) if prob > 0 else 0.0
-        if one_in <= limit:
-            best_idx = idx
-            best_one_in = one_in
+        tax = get_fusion_tax_multiplier(one_in, max_sac_one_in)
+        required_value = one_in * tax
+        if required_value <= limit:
+            if one_in >= best_one_in:
+                best_idx = idx
+                best_one_in = one_in
 
     if best_idx < 0:
         return None
@@ -94,9 +139,9 @@ def _clean_label(text: str, max_len: int = 100) -> str:
 
 
 class PitRaritySelect(discord.ui.Select):
-    def __init__(self, pit_view: "PitView", page_items: List[Tuple[str, int]]):
+    def __init__(self, pit_view: "PitView", page_items: list[tuple[str, int]]):
         self.pit_view = pit_view
-        options: List[discord.SelectOption] = []
+        options: list[discord.SelectOption] = []
 
         for rarity_name, count in page_items[:25]:
             rid = RARITY_NAME_TO_ID.get(rarity_name, rarity_name)
@@ -169,14 +214,14 @@ class PitView(discord.ui.View):
     def __init__(
         self,
         user_id: str,
-        inventory: Dict[str, int],
+        inventory: dict[str, int],
         bot=None,
         pit_tier: int = 0,
         pit_luck: float = 0.0,
     ):
         super().__init__(timeout=240)
         self.user_id = str(user_id)
-        self.inventory: Dict[str, int] = dict(inventory)
+        self.inventory: dict[str, int] = dict(inventory)
         self.bot = bot
         self.pit_tier = int(pit_tier)
         self.pit_luck = float(pit_luck)
@@ -185,8 +230,8 @@ class PitView(discord.ui.View):
         self.sort_ascending = True  # Default: Lowest rarity first (easiest to dump junk)
         self.page = 0
         self.items_per_page = 25
-        self.selected_ids: Set[str] = set()
-        self.last_result_banner: Optional[str] = None
+        self.selected_ids: set[str] = set()
+        self.last_result_banner: str | None = None
 
         self.rebuild_components()
 
@@ -198,7 +243,7 @@ class PitView(discord.ui.View):
     def qty_mode_label(self) -> str:
         return QUANTITY_MODES[self.qty_mode_idx][1]
 
-    def sorted_inventory_items(self) -> List[Tuple[str, int]]:
+    def sorted_inventory_items(self) -> list[tuple[str, int]]:
         valid = [
             (r_name, count)
             for r_name, count in self.inventory.items()
@@ -215,18 +260,18 @@ class PitView(discord.ui.View):
         items = self.sorted_inventory_items()
         return max(1, (len(items) + self.items_per_page - 1) // self.items_per_page)
 
-    def current_page_items(self) -> List[Tuple[str, int]]:
+    def current_page_items(self) -> list[tuple[str, int]]:
         items = self.sorted_inventory_items()
         self.page = max(0, min(self.page, self.total_pages - 1))
         start = self.page * self.items_per_page
         return items[start : start + self.items_per_page]
 
-    def compute_sacrifice_plan(self) -> Tuple[List[Tuple[str, int, float]], float]:
+    def compute_sacrifice_plan(self) -> tuple[list[tuple[str, int, float]], float]:
         """
         Returns (list of (rarity_name, sac_qty, subtotal_value), combined_total_value)
         for all currently selected rarities.
         """
-        plan: List[Tuple[str, int, float]] = []
+        plan: list[tuple[str, int, float]] = []
         total_value = 0.0
 
         # Order selected items by rarity index
@@ -345,7 +390,12 @@ class PitView(discord.ui.View):
                 inline=False,
             )
 
-            match = find_closest_rarity_for_value(total_val)
+            max_sac_one_in = (
+                max(RARITY_NAME_TO_ONE_IN.get(r_name, 2.0) for r_name, _, _ in plan)
+                if plan
+                else 0.0
+            )
+            match = find_closest_rarity_for_value(total_val, max_sac_one_in=max_sac_one_in)
             if match:
                 chosen_name, tier_one_in, tied_names = match
                 if len(tied_names) > 1:
@@ -369,8 +419,7 @@ class PitView(discord.ui.View):
                 inline=True,
             )
             if self.pit_tier >= 1:
-                divisor = get_pit_luck_divisor(self.pit_tier)
-                luck_gain = total_val / divisor
+                luck_gain = calculate_pit_luck_gain(total_val, self.pit_tier)
                 embed.add_field(
                     name="🍀 Pit Luck",
                     value=f"**+{format_number(luck_gain)}**",
@@ -392,8 +441,8 @@ class PitView(discord.ui.View):
 
         footer_text = f"Page {self.page + 1}/{self.total_pages} • {self.qty_mode_label} • Selected types: {len(self.selected_ids)}"
         if self.pit_tier >= 1:
-            divisor = get_pit_luck_divisor(self.pit_tier)
-            footer_text += f" • Pit Luck: T{self.pit_tier} ({format_number(divisor)}x)"
+            mult = get_pit_luck_multiplier(self.pit_tier)
+            footer_text += f" • Pit Luck: T{self.pit_tier} ({format_number(mult)}x)"
         embed.set_footer(text=footer_text)
         return embed
 
@@ -461,7 +510,7 @@ class PitView(discord.ui.View):
             discovered = user.setdefault("discovered", {})
 
             # Recompute against live DB inventory to prevent any race condition
-            actual_deductions: Dict[str, int] = {}
+            actual_deductions: dict[str, int] = {}
             total_value = 0.0
 
             for rid in list(self.selected_ids):
@@ -483,10 +532,19 @@ class PitView(discord.ui.View):
                     "❌ You no longer have enough eligible items to sacrifice.", ephemeral=True
                 )
 
+            max_sac_one_in = (
+                max(RARITY_NAME_TO_ONE_IN.get(r_name, 2.0) for r_name in actual_deductions.keys())
+                if actual_deductions
+                else 0.0
+            )
             single_sac_name = (
                 next(iter(actual_deductions.keys())) if len(actual_deductions) == 1 else None
             )
-            match = find_closest_rarity_for_value(total_value, exclude_single_same=single_sac_name)
+            match = find_closest_rarity_for_value(
+                total_value,
+                max_sac_one_in=max_sac_one_in,
+                exclude_single_same=single_sac_name,
+            )
             if not match:
                 return await interaction.response.send_message(
                     "❌ Combined rarity value is too low to fuse.", ephemeral=True
@@ -497,8 +555,7 @@ class PitView(discord.ui.View):
 
             luck_gained = 0.0
             if pit_tier >= 1:
-                divisor = get_pit_luck_divisor(pit_tier)
-                luck_gained = total_value / divisor
+                luck_gained = calculate_pit_luck_gain(total_value, pit_tier)
 
             forged_rarity, _tier_one_in, _tied = match
             total_sacrificed_count = sum(actual_deductions.values())

@@ -2,17 +2,17 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from systems.game.upgrades import UPGRADE_CATEGORIES
 from systems.game.utils import (
-    save_user_data,
-    ensure_user,
-    has_requirements,
+    RARITY_ID_TO_NAME,
     consume_requirements,
+    ensure_user,
+    format_number,
     get_item_count,
     get_upgrade_effect,
-    RARITY_ID_TO_NAME,
-    format_number,
+    has_requirements,
+    save_user_data,
 )
-from systems.game.upgrades import UPGRADE_CATEGORIES
 
 
 class UpgradeView(discord.ui.View):
@@ -266,14 +266,12 @@ class UpgradeView(discord.ui.View):
         if self.category == "luck":
             if luck_override is not None:
                 total_luck = luck_override
-                luck_status = "🎯 OVERRIDE"
             else:
                 base_luck = user.get("luck_multi", 1.0)
                 bonuses = await get_upgrade_effect(self.user_id, user_obj=user)
                 total_luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get(
                     "exp_bonus", 1.0
                 )
-                luck_status = "🍀 Your Luck"
 
             total_luck = float(total_luck or 0.0)
 
@@ -300,17 +298,17 @@ class UpgradeView(discord.ui.View):
         )
 
         if key == "pit_luck":
-            from systems.game.upgrades import get_pit_luck_divisor
+            from systems.game.upgrades import get_pit_luck_multiplier
 
             pit_luck_val = float(user.get("pit_luck", 0.0))
             if current_tier > 0:
-                cur_div = get_pit_luck_divisor(current_tier)
-                stats_val = f"Bonus: **+{format_number(pit_luck_val)}** 🍀 • Divisor: **{format_number(cur_div)}x**"
+                cur_mult = get_pit_luck_multiplier(current_tier)
+                stats_val = f"Bonus: **+{format_number(pit_luck_val)}** 🍀 • Multiplier: **{format_number(cur_mult)}x**"
             else:
-                stats_val = "Bonus: **+0** 🍀 • Divisor: **1,000,000x** (at Tier 1)"
+                stats_val = "Bonus: **+0** 🍀 • Multiplier: **0.5x** (at Tier 1)"
             if next_tier <= upgrade_def.get("max_tier", 20):
-                nxt_div = get_pit_luck_divisor(next_tier)
-                stats_val += f"\nNext Tier Divisor: **{format_number(nxt_div)}x**"
+                nxt_mult = get_pit_luck_multiplier(next_tier)
+                stats_val += f"\nNext Tier Multiplier: **{format_number(nxt_mult)}x**"
             embed.add_field(name="🕳️ Pit Luck Stats", value=stats_val, inline=False)
 
         if reqs:

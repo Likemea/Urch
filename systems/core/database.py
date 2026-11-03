@@ -97,7 +97,8 @@ class Database:
                 clover_every INTEGER DEFAULT 10,
                 clovers_earned INTEGER DEFAULT 0,
                 luck_override REAL,
-                autoroll_active BOOLEAN DEFAULT 0
+                autoroll_active BOOLEAN DEFAULT 0,
+                pit_luck REAL DEFAULT 0.0
             )
         """):
             pass
@@ -106,6 +107,13 @@ class Database:
             async with self.conn.execute(
                 "ALTER TABLE users ADD COLUMN autoroll_active BOOLEAN DEFAULT 0"
             ):
+                pass
+            await self.conn.commit()
+        except aiosqlite.OperationalError:
+            pass
+
+        try:
+            async with self.conn.execute("ALTER TABLE users ADD COLUMN pit_luck REAL DEFAULT 0.0"):
                 pass
             await self.conn.commit()
         except aiosqlite.OperationalError:
@@ -411,6 +419,7 @@ class Database:
                 if not user_row:
                     return None
                 user_data = dict(user_row)
+                user_data["pit_luck"] = float(user_data.get("pit_luck") or 0.0)
 
             async with self.conn.execute(
                 "SELECT item_name, quantity, discovered FROM user_inventory WHERE user_id = ?",
@@ -455,8 +464,8 @@ class Database:
                     """
                     INSERT OR REPLACE INTO users 
                     (user_id, roll_count, highscore, luck_multi, max_luck, clover_multi, 
-                        clover_every, clovers_earned, luck_override, autoroll_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        clover_every, clovers_earned, luck_override, autoroll_active, pit_luck)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         user_id,
@@ -469,6 +478,7 @@ class Database:
                         data.get("clovers_earned", 0),
                         data.get("luck_override"),
                         data.get("autoroll_active", 0),
+                        float(data.get("pit_luck", 0.0) or 0.0),
                     ),
                 ):
                     pass

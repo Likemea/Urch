@@ -6,18 +6,25 @@ and PitView interactive flows.
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
-from systems.core.database import db
-from systems.game.raritylist import RARITIES
-from systems.game.upgrades.luck_upgrades import LUCK_UPGRADES, get_pit_luck_divisor
-from systems.game.upgrades import get_upgrade_effect
 from systems.bot.commands.pit import (
     PitView,
     calculate_sacrifice_qty,
     find_closest_rarity_for_value,
+    get_fusion_tax_multiplier,
 )
-from systems.game.utils import ensure_user, get_user_data, save_user_data, RARITY_ID_TO_NAME
+from systems.core.database import db
+from systems.game.raritylist import RARITIES
+from systems.game.upgrades import get_upgrade_effect
+from systems.game.upgrades.luck_upgrades import (
+    LUCK_UPGRADES,
+    calculate_pit_luck_gain,
+    get_pit_luck_divisor,
+    get_pit_luck_multiplier,
+)
+from systems.game.utils import RARITY_ID_TO_NAME, ensure_user, get_user_data, save_user_data
 
 RARITY_DICT = {r[2]: r[0] for r in RARITIES}
 RARITY_VALS = {r[2]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES}
@@ -53,7 +60,7 @@ async def test_pit_view_interactive_sacrifice_flow(tmp_path):
         uid = "pit_user_1"
         user = await ensure_user(uid)
         woah_name = RARITY_ID_TO_NAME["woah"]  # 1 in 1T
-        plasmatic_name = RARITY_ID_TO_NAME["plasmatic"]  # 1 in 100T
+        big_bang_name = RARITY_ID_TO_NAME["big_bang"]  # 1 in 16.5T (taxed from 100T)
         user["inventory"] = {woah_name: 101}
         user["discovered"] = {woah_name: True}
         await save_user_data(uid, user)
@@ -75,9 +82,9 @@ async def test_pit_view_interactive_sacrifice_flow(tmp_path):
 
         updated = await get_user_data(uid)
         assert updated["inventory"].get(woah_name) == 1
-        assert updated["inventory"].get(plasmatic_name) == 1
-        assert updated["discovered"].get(plasmatic_name) is True
-        assert updated["highscore"] == plasmatic_name
+        assert updated["inventory"].get(big_bang_name) == 1
+        assert updated["discovered"].get(big_bang_name) is True
+        assert updated["highscore"] == big_bang_name
     finally:
         await db.close()
         db.db_path = old_path
@@ -144,6 +151,21 @@ def test_pit_luck_effect_in_upgrade_system():
 
 
 @pytest.mark.asyncio
+async def test_pit_luck_database_integration_and_roll_luck(fresh_db):
+    await fresh_db.ensure_user("u_pit_integration")
+    user = await fresh_db.get_user_data("u_pit_integration")
+    user["pit_luck"] = 5000.0
+    user.setdefault("upgrades", {}).setdefault("luck", {})["pit_luck"] = 1
+    await fresh_db.save_user_data("u_pit_integration", user)
+
+    loaded = await fresh_db.get_user_data("u_pit_integration")
+    assert loaded["pit_luck"] == 5000.0
+
+    eff = get_upgrade_effect("u_pit_integration", loaded)
+    assert eff["luck_bonus"] >= 5000.0
+
+
+@pytest.mark.asyncio
 async def test_pit_view_embed_preview():
     exode_name = RARITY_DICT["exode"]
     inventory = {exode_name: 5}
@@ -203,11 +225,12 @@ async def test_pit_sacrifice_awards_luck(monkeypatch):
 
     await view.on_confirm_sacrifice(interaction)
 
-    expected_luck = round(10.0 + 0.09, 4)
+    # 9 * 10,000 = 90,000. 90,000^0.40 * (0.5 * 1) = 47.9366
+    expected_luck = round(10.0 + 47.9366, 4)
     assert fake_user["pit_luck"] == expected_luck
     assert view.pit_luck == expected_luck
     assert "Pit Luck" in view.last_result_banner
-    assert "+0.09" in view.last_result_banner
+    assert "+47.94" in view.last_result_banner
 
 
 @pytest.mark.asyncio
@@ -255,3 +278,42 @@ async def test_pit_sacrifice_without_upgrade_awards_no_luck(monkeypatch):
     assert fake_user["pit_luck"] == 0.0
     assert view.pit_luck == 0.0
     assert "Pit Luck" not in view.last_result_banner
+
+
+def test_pit_luck_multiplier_curve_and_gain():
+    assert get_pit_luck_multiplier(0) == 0.0
+    assert get_pit_luck_multiplier(1) == 0.5
+    assert get_pit_luck_multiplier(2) == 1.0
+    assert get_pit_luck_multiplier(10) == 5.0
+    assert get_pit_luck_multiplier(20) == 10.0
+    assert get_pit_luck_multiplier(25) == 10.0
+
+    # calculate_pit_luck_gain
+    assert calculate_pit_luck_gain(0, 1) == 0.0
+    assert calculate_pit_luck_gain(10000, 0) == 0.0
+    # 10,000^0.40 * 0.5 = 39.810717... * 0.5 = 19.9054
+    assert calculate_pit_luck_gain(10000, 1) == 19.9054
+    # 10,000^0.40 * 10.0 = 398.1072
+    assert calculate_pit_luck_gain(10000, 20) == 398.1072
+
+
+def test_fusion_tax_multipliers_and_chaining_prevention():
+    # Ruby (512) and Emerald (512) are in the same tier
+    assert get_fusion_tax_multiplier(512, 512) == 1.0
+    # Forging lower tier is untaxed
+    assert get_fusion_tax_multiplier(256, 512) == 1.0
+
+    # +1 tier above 512 is 53_2 (530)
+    assert get_fusion_tax_multiplier(530, 512) == 2.0
+    # +2 tiers above 512 is Anger (600)
+    assert get_fusion_tax_multiplier(600, 512) == 3.5
+    # +3 tiers above 512 is Freezing (650)
+    assert get_fusion_tax_multiplier(650, 512) == 5.0
+
+    # Test that 1 top rarity + pennies cannot bridge to next tier
+    # 1x Ruby (512) + 10 pennies = 522 total value
+    match = find_closest_rarity_for_value(522.0, max_sac_one_in=512.0)
+    assert match is not None
+    chosen_name, tier_one_in, _ = match
+    # It must remain at 512 tier, NOT bridge to 530
+    assert tier_one_in <= 512.0
