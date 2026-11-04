@@ -3,16 +3,20 @@
 Tests for rolling mechanics, autorolls, currency/inventory routing, and leaderboard views.
 """
 
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import discord
 
 from systems.bot.commands.leaderboard import LeaderboardView
+from systems.bot.commands.roll import ButtonView
 from systems.game.raritylist import RARITIES
 from systems.game.utils import (
+    _WEBHOOK_CACHE,
     currency_add,
     currency_count,
     currency_remove,
+    log_rare_roll,
     process_autorolls,
     roll_rarities,
 )
@@ -149,3 +153,111 @@ async def test_leaderboard_queries_only_once_per_click():
 
     assert view.get_leaderboard_data.call_count == 1
     interaction.response.edit_message.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_high_luck_reroll_single_db_load_and_delta_write(fresh_db):
+    """Verify a quadrillion-luck user with 200+ discovered rarities only calls get_user_data once
+    and uses delta updates instead of full save_user_data during Reroll."""
+    user_id = "777888999"
+    await fresh_db.ensure_user(user_id)
+
+    user = await fresh_db.get_user_data(user_id)
+    user["luck_multi"] = 1_000_000_000_000_000.0  # 1 Quadrillion luck
+    user["inventory"] = {r[0]: 5 for r in RARITIES[:210]}
+    user["discovered"] = {r[0]: True for r in RARITIES[:210]}
+    user["upgrades"] = {
+        "luck": {"additive_luck": 50, "exp_luck": 10},
+        "roll": {"multi_roll": 6, "lucky_roll": 1},
+        "clover": {"clover_gain": 4},
+    }
+    user["currencies"] = {
+        "clovers": 500,
+        "potion_exp_overclock_potion": int(time.time()) + 300,
+        "potion_charge_hypercharge_potion": 3,
+    }
+    await fresh_db.save_user_data(user_id, user)
+
+    bot = MagicMock()
+    view = ButtonView(user_id, RARITIES[0][0], bot)
+
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.user = MagicMock()
+    interaction.user.id = int(user_id)
+    interaction.response.defer = AsyncMock()
+    interaction.edit_original_response = AsyncMock()
+
+    with (
+        patch.object(fresh_db, "get_user_data", wraps=fresh_db.get_user_data) as spy_get,
+        patch.object(fresh_db, "save_user_data", wraps=fresh_db.save_user_data) as spy_save,
+        patch.object(
+            fresh_db, "bulk_update_autoroll", wraps=fresh_db.bulk_update_autoroll
+        ) as spy_bulk,
+    ):
+        await view.reroll.callback(interaction)
+        assert spy_get.call_count == 1
+        assert spy_save.call_count == 0
+        assert spy_bulk.call_count == 1
+
+    reloaded = await fresh_db.get_user_data(user_id)
+    assert reloaded["roll_count"] > 20
+    assert reloaded["currencies"]["potion_charge_hypercharge_potion"] == 2
+    interaction.edit_original_response.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_process_autorolls_single_db_load_per_user(fresh_db):
+    """Verify process_autorolls only loads get_user_data once per user even with active potions."""
+    user_id = "autoroll_perf_user"
+    await fresh_db.ensure_user(user_id)
+    user = await fresh_db.get_user_data(user_id)
+    user["luck_multi"] = 50_000_000_000_000.0
+    user["inventory"] = {r[0]: 2 for r in RARITIES[:180]}
+    user["discovered"] = {r[0]: True for r in RARITIES[:180]}
+    user["upgrades"] = {
+        "luck": {},
+        "roll": {"multi_roll": 6, "lucky_roll": 1, "autoroll_unlock": 1},
+        "clover": {},
+    }
+    user["currencies"] = {"potion_exp_overclock_potion": int(time.time()) + 300}
+    await fresh_db.save_user_data(user_id, user)
+
+    with (
+        patch.object(fresh_db, "get_user_data", wraps=fresh_db.get_user_data) as spy_get,
+        patch.object(fresh_db, "save_user_data", wraps=fresh_db.save_user_data) as spy_save,
+    ):
+        await process_autorolls([user_id])
+        assert spy_get.call_count == 1
+        assert spy_save.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_rarity_logger_webhook_caching():
+    """Verify log_rare_roll caches the channel webhook across calls."""
+    _WEBHOOK_CACHE.clear()
+    mock_webhook = MagicMock(spec=discord.Webhook)
+    mock_webhook.name = "Rarity Logger"
+    mock_webhook.send = AsyncMock()
+
+    mock_channel = MagicMock(spec=discord.TextChannel)
+    mock_channel.id = 987654321
+    mock_channel.name = "✨🎰・rare-rolls"
+    mock_channel.webhooks = AsyncMock(return_value=[mock_webhook])
+
+    mock_guild = MagicMock(spec=discord.Guild)
+    mock_guild.text_channels = [mock_channel]
+
+    mock_bot = MagicMock()
+    mock_bot.get_guild.return_value = mock_guild
+    mock_bot.user.display_avatar.url = "https://example.com/bot.png"
+
+    mock_user = MagicMock()
+    mock_user.name = "TestRoller"
+    mock_user.display_avatar.url = "https://example.com/user.png"
+
+    await log_rare_roll(mock_bot, mock_user, RARITIES[80][0], 1_000_000, 100.0)
+    await log_rare_roll(mock_bot, mock_user, RARITIES[80][0], 1_000_000, 100.0)
+
+    assert mock_channel.webhooks.await_count == 1
+    assert mock_webhook.send.await_count == 2
+    _WEBHOOK_CACHE.clear()

@@ -1,4 +1,5 @@
 # Urch/utils.py
+import asyncio
 import random
 from typing import Dict, List, Optional, Tuple, Union
 from collections import Counter
@@ -20,6 +21,10 @@ TOTAL_BASE_PROB = sum(RARITY_BASE_PROBS)
 TOTAL_RARITIES = len(RARITIES)
 RARITY_RANKS = [idx / max(1, TOTAL_RARITIES - 1) for idx in range(TOTAL_RARITIES)]
 RARITY_INDEX_MAP = {r[0]: idx for idx, r in enumerate(RARITIES)}
+RARITY_WEIGHT_MAP = {r[0]: r[1] for r in RARITIES}
+RARITY_ONE_IN_MAP = {r[0]: (TOTAL_BASE_PROB / r[1]) for r in RARITIES if r[1] > 0}
+
+_WEBHOOK_CACHE: Dict[int, discord.Webhook] = {}
 
 LUCK_EXP_MIN = -0.4
 LUCK_EXP_MAX = 1.2
@@ -62,6 +67,9 @@ DEFAULT_AI_PARAMS = {
 
 async def ensure_user(user_id: str) -> Dict[str, any]:
     """ensure user exists and return their data"""
+    user = await db.get_user_data(user_id)
+    if user is not None:
+        return user
     await db.ensure_user(user_id)
     return await db.get_user_data(user_id) or {}
 
@@ -81,9 +89,10 @@ async def update_user_data(
     new_rarity: Union[str, List[str]],
     action: str = "none",
     clover_mult: Optional[float] = None,
+    user_obj: Optional[Dict[str, any]] = None,
 ) -> Optional[Dict[str, any]]:
     async with db.lock_user(user_id):
-        user = await db.get_user_data(user_id)
+        user = user_obj if user_obj is not None else await db.get_user_data(user_id)
         if not user:
             return None
 
@@ -106,14 +115,17 @@ async def update_user_data(
                 highest_idx = idx
                 best_rarity = r
 
+        highscore_changed = False
         if best_rarity and best_rarity != current_high:
             user["highscore"] = best_rarity
+            highscore_changed = True
 
         if action == "keep":
             inventory = user.setdefault("inventory", {})
             discovered = user.setdefault("discovered", {})
 
             rarity_counts = Counter(rarities_list)
+            inventory_diff = dict(rarity_counts)
             for r, count in rarity_counts.items():
                 inventory[r] = inventory.get(r, 0) + count
                 discovered[r] = True
@@ -134,6 +146,7 @@ async def update_user_data(
             effective_luck = (new_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
 
             earned_clovers = 0
+            currency_diff = {}
             if effective_luck >= 10000:
                 clover_chance = float(bonuses.get("clover_chance", 0.10))
                 triggers = sum(1 for _ in range(roll_count_inc) if random.random() < clover_chance)
@@ -143,10 +156,10 @@ async def update_user_data(
                         try:
                             from systems.game.buffs import evaluate_active_buffs
 
-                            buff_data = await evaluate_active_buffs(user_id, context="manual")
+                            buff_data = await evaluate_active_buffs(
+                                user_id, context="manual", user_obj=user
+                            )
                             clover_mult = float(buff_data.get("clover_mult", 1.0))
-                            # Reload currencies from db because evaluate_active_buffs modified charges in DB
-                            user["currencies"] = await db.get_user_currencies(user_id)
                         except Exception:
                             clover_mult = 1.0
 
@@ -161,10 +174,27 @@ async def update_user_data(
                         currencies = user.setdefault("currencies", {})
                         currencies["clovers"] = currencies.get("clovers", 0) + earned_clovers
                         user["clovers_earned"] = user.get("clovers_earned", 0) + earned_clovers
+                        currency_diff["clovers"] = earned_clovers
 
             user["last_earned_clovers"] = earned_clovers
 
-        await db.save_user_data(user_id, user)
+            await db.bulk_update_autoroll(
+                [
+                    {
+                        "user_id": user_id,
+                        "roll_count": user["roll_count"],
+                        "highscore": user.get("highscore"),
+                        "luck_multi": user["luck_multi"],
+                        "max_luck": user.get("max_luck", 1.0),
+                        "clovers_earned": user.get("clovers_earned", 0),
+                        "inventory_diff": inventory_diff,
+                        "currency_diff": currency_diff,
+                    }
+                ]
+            )
+        elif highscore_changed:
+            await db.update_user_value("users", "highscore", user["highscore"], user_id=user_id)
+
         return user
 
 
@@ -173,69 +203,68 @@ async def update_user_data(
 # ───────────────────────────────
 
 
-async def currency_add(user_id: str, item_key: str, amount: int = 1):
+async def currency_add(
+    user_id: str, item_key: str, amount: int = 1, user_obj: Optional[Dict[str, any]] = None
+):
     """detects if item is currency or inventory based on key"""
+    amt = int(amount)
+    if amt == 0:
+        return
+    db_key, category = resolve_item_key(item_key)
     async with db.lock_user(user_id):
-        user = await db.get_user_data(user_id)
-        if not user:
-            return
-
-        db_key, category = resolve_item_key(item_key)
-
-        if category == "currency":
-            curr = user.setdefault("currencies", {})
-            curr[db_key] = curr.get(db_key, 0) + int(amount)
-        else:
-            inv = user.setdefault("inventory", {})
-            inv[db_key] = inv.get(db_key, 0) + int(amount)
-            disc = user.setdefault("discovered", {})
-            disc[db_key] = True
-
-        await db.save_user_data(user_id, user)
+        ok = await db.add_item_or_currency(
+            user_id, db_key, category, amt, verify_user=(user_obj is None)
+        )
+        if ok and user_obj is not None:
+            if category == "currency":
+                curr = user_obj.setdefault("currencies", {})
+                curr[db_key] = curr.get(db_key, 0) + amt
+            else:
+                inv = user_obj.setdefault("inventory", {})
+                inv[db_key] = inv.get(db_key, 0) + amt
+                disc = user_obj.setdefault("discovered", {})
+                disc[db_key] = True
 
 
-async def currency_remove(user_id: str, item_key: str, amount: int = 1) -> bool:
+async def currency_remove(
+    user_id: str, item_key: str, amount: int = 1, user_obj: Optional[Dict[str, any]] = None
+) -> bool:
     """checks correct storage location"""
+    amt = int(amount)
+    db_key, category = resolve_item_key(item_key)
     async with db.lock_user(user_id):
-        user = await db.get_user_data(user_id)
-        if not user:
-            return False
-
-        db_key, category = resolve_item_key(item_key)
-
-        if category == "currency":
-            currencies = user.get("currencies", {})
-            if currencies.get(db_key, 0) >= amount:
-                currencies[db_key] -= amount
-                if currencies[db_key] == 0:
-                    del currencies[db_key]
-                await db.save_user_data(user_id, user)
-                return True
-            return False
-        else:
-            # Inventory
-            inventory = user.get("inventory", {})
-            if inventory.get(db_key, 0) >= amount:
-                inventory[db_key] -= amount
-                if inventory[db_key] == 0:
-                    del inventory[db_key]
-                await db.save_user_data(user_id, user)
-                return True
-            return False
+        ok = await db.remove_item_or_currency(user_id, db_key, category, amt)
+        if ok and user_obj is not None:
+            if category == "currency":
+                currencies = user_obj.get("currencies", {})
+                if db_key in currencies:
+                    currencies[db_key] -= amt
+                    if currencies[db_key] <= 0:
+                        del currencies[db_key]
+            else:
+                inventory = user_obj.get("inventory", {})
+                if db_key in inventory:
+                    inventory[db_key] -= amt
+                    if inventory[db_key] <= 0:
+                        del inventory[db_key]
+        return ok
 
 
 async def currency_count(user_id: str, item_key: str, user_obj: Dict[str, any] = None) -> int:
     """looks in correct storage location"""
-    user = user_obj if user_obj is not None else await get_user_data(user_id)
-    if not user:
-        return 0
-
     db_key, category = resolve_item_key(item_key)
+    if user_obj is not None:
+        if not user_obj:
+            return 0
+        if category == "currency":
+            return int((user_obj.get("currencies") or {}).get(db_key, 0))
+        else:
+            return int((user_obj.get("inventory") or {}).get(db_key, 0))
 
     if category == "currency":
-        return int(user.get("currencies", {}).get(db_key, 0))
+        return await db.get_user_currency(user_id, db_key)
     else:
-        return int(user.get("inventory", {}).get(db_key, 0))
+        return await db.get_user_inventory_item(user_id, db_key)
 
 
 async def has_requirements(
@@ -262,12 +291,12 @@ async def has_requirements(
 
 async def consume_requirements(user_id: str, requirements: Dict[str, int]) -> bool:
     async with db.lock_user(user_id):
-        ok, missing = await has_requirements(user_id, requirements)
-        if not ok:
-            return False
-
         user = await db.get_user_data(user_id)
         if not user:
+            return False
+
+        ok, missing = await has_requirements(user_id, requirements, user_obj=user)
+        if not ok:
             return False
 
         for item_key, need in requirements.items():
@@ -291,17 +320,23 @@ async def get_item_count(user_id: str, item_key: str, user_obj: Dict[str, any] =
     return await currency_count(user_id, item_key, user_obj=user_obj)
 
 
-async def inventory_all_items_sorted(user_id: str, rarities_list: list) -> list:
+async def inventory_all_items_sorted(
+    user_id: str, rarities_list: list, user_obj: Optional[Dict[str, any]] = None
+) -> list:
     """
     Returns sorted inventory items.
     rarities_list: List of tuples (Name, Prob, ID) from RARITIES
     """
-    user = await get_user_data(user_id)
+    user = user_obj if user_obj is not None else await get_user_data(user_id)
     if not user:
         return []
     inv = user.get("inventory", {})
 
-    order = {r[0]: idx for idx, r in enumerate(rarities_list)}
+    order = (
+        RARITY_INDEX_MAP
+        if rarities_list is RARITIES
+        else {r[0]: idx for idx, r in enumerate(rarities_list)}
+    )
 
     sorted_items = sorted(
         [(k, v) for k, v in inv.items() if k in order],
@@ -388,7 +423,7 @@ async def process_autorolls(user_ids: List[str]):
                 base_luck = float(user.get("luck_multi", 1.0))
                 total_luck = (base_luck + bonuses["luck_bonus"]) * bonuses["exp_bonus"]
 
-            buff_data = await evaluate_active_buffs(user_id, context="autoroll")
+            buff_data = await evaluate_active_buffs(user_id, context="autoroll", user_obj=user)
             total_luck *= buff_data["luck_mult"]
 
             total_luck = max(1.0, total_luck)
@@ -401,25 +436,21 @@ async def process_autorolls(user_ids: List[str]):
 
             roll_count_inc = len(results)
             new_highscore = user.get("highscore")
-            rarity_order = [r[0] for r in RARITIES]
+            highscore_idx = RARITY_INDEX_MAP.get(new_highscore, -1) if new_highscore else -1
 
-            inventory_diff = {}
+            inventory_diff = dict(Counter(results))
+            rare_threshold = total_luck * 100.0
 
             for res in results:
-                inventory_diff[res] = inventory_diff.get(res, 0) + 1
-
-                if not new_highscore or rarity_order.index(res) > rarity_order.index(new_highscore):
+                res_idx = RARITY_INDEX_MAP.get(res, -1)
+                if res_idx > highscore_idx:
+                    highscore_idx = res_idx
                     new_highscore = res
 
                 # if one_in >= (total_luck * 100), it's a rare roll
-                rarity_data = next((r for r in RARITIES if r[0] == res), None)
-                if rarity_data:
-                    weight = rarity_data[1]
-                    total_weight = sum(r[1] for r in RARITIES)
-                    one_in = total_weight / weight
-
-                    if one_in >= (total_luck * 100):
-                        rare_hits.append((user_id, res, one_in, total_luck))
+                one_in = RARITY_ONE_IN_MAP.get(res)
+                if one_in is not None and one_in >= rare_threshold:
+                    rare_hits.append((user_id, res, one_in, total_luck))
 
             # Luck growth
             current_luck = user.get("luck_multi", 1.0)
@@ -456,7 +487,36 @@ async def process_autorolls(user_ids: List[str]):
             }
             await db.bulk_update_autoroll([update])
 
+        # Yield between users so interactive manual rolls are not starved
+        await asyncio.sleep(0)
+
     return rare_hits
+
+
+async def _send_via_rarity_logger_webhook(channel, embed, avatar_url=None):
+    channel_id = getattr(channel, "id", None)
+    webhook = _WEBHOOK_CACHE.get(channel_id) if channel_id is not None else None
+
+    if webhook is None:
+        webhooks = await channel.webhooks()
+        webhook = discord.utils.get(webhooks, name="Rarity Logger")
+        if not webhook:
+            webhook = await channel.create_webhook(name="Rarity Logger")
+        if channel_id is not None:
+            _WEBHOOK_CACHE[channel_id] = webhook
+
+    try:
+        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        if channel_id is not None:
+            _WEBHOOK_CACHE.pop(channel_id, None)
+        webhooks = await channel.webhooks()
+        webhook = discord.utils.get(webhooks, name="Rarity Logger")
+        if not webhook:
+            webhook = await channel.create_webhook(name="Rarity Logger")
+        if channel_id is not None:
+            _WEBHOOK_CACHE[channel_id] = webhook
+        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
 
 
 async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
@@ -500,14 +560,8 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
         embed.set_thumbnail(url=user.display_avatar.url)
         embed.timestamp = discord.utils.utcnow()
 
-        webhooks = await channel.webhooks()
-        webhook = discord.utils.get(webhooks, name="Rarity Logger")
-        if not webhook:
-            webhook = await channel.create_webhook(name="Rarity Logger")
-
-        await webhook.send(
-            embed=embed, username="Rarity Logger", avatar_url=bot.user.display_avatar.url
-        )
+        avatar_url = bot.user.display_avatar.url if getattr(bot, "user", None) else None
+        await _send_via_rarity_logger_webhook(channel, embed, avatar_url=avatar_url)
 
     except Exception as e:
         print(f"Failed to log rare roll: {e}")
@@ -544,13 +598,8 @@ async def log_biome_event(bot, biome_state: Dict[str, any]):
         )
         embed.timestamp = discord.utils.utcnow()
 
-        webhooks = await channel.webhooks()
-        webhook = discord.utils.get(webhooks, name="Rarity Logger")
-        if not webhook:
-            webhook = await channel.create_webhook(name="Rarity Logger")
-
-        avatar_url = bot.user.display_avatar.url if bot.user else None
-        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+        avatar_url = bot.user.display_avatar.url if getattr(bot, "user", None) else None
+        await _send_via_rarity_logger_webhook(channel, embed, avatar_url=avatar_url)
     except Exception as e:
         print(f"Failed to log biome event: {e}")
 
@@ -743,6 +792,10 @@ __all__ = [
     "DEFAULT_AI_PARAMS",
     "LUCK_GROWTH_PER_ROLL",
     "CHECKLIST_BONUS",
+    "RARITY_ID_TO_NAME",
+    "RARITY_INDEX_MAP",
+    "RARITY_WEIGHT_MAP",
+    "RARITY_ONE_IN_MAP",
     "ensure_user",
     "get_user_data",
     "save_user_data",

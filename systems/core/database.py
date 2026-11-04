@@ -405,9 +405,108 @@ class Database:
             async with self.conn.execute(
                 "SELECT currency_type, amount FROM user_currencies WHERE user_id = ?", (user_id,)
             ) as cursor:
-                return {
-                    row["currency_type"]: row["amount"] async for row in cursor if row["amount"] > 0
-                }
+                rows = await cursor.fetchall()
+                return {row["currency_type"]: row["amount"] for row in rows if row["amount"] > 0}
+
+    async def get_user_currency(self, user_id: str, currency_type: str) -> int:
+        await self._check_conn()
+        async with self._lock:
+            async with self.conn.execute(
+                "SELECT amount FROM user_currencies WHERE user_id = ? AND currency_type = ?",
+                (user_id, currency_type),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return int(row["amount"]) if row and row["amount"] > 0 else 0
+
+    async def get_user_inventory_item(self, user_id: str, item_name: str) -> int:
+        await self._check_conn()
+        async with self._lock:
+            async with self.conn.execute(
+                "SELECT quantity FROM user_inventory WHERE user_id = ? AND item_name = ?",
+                (user_id, item_name),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return int(row["quantity"]) if row and row["quantity"] > 0 else 0
+
+    async def add_item_or_currency(
+        self, user_id: str, db_key: str, category: str, amount: int, verify_user: bool = True
+    ) -> bool:
+        amount = int(amount)
+        if amount == 0:
+            return True
+        await self._check_conn()
+        async with self._lock:
+            async with self.transaction():
+                if verify_user:
+                    async with self.conn.execute(
+                        "SELECT 1 FROM users WHERE user_id = ?", (user_id,)
+                    ) as cur:
+                        if not await cur.fetchone():
+                            return False
+                if category == "currency":
+                    await self.conn.execute(
+                        """
+                        INSERT INTO user_currencies (user_id, currency_type, amount)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(user_id, currency_type) DO UPDATE SET
+                            amount = amount + excluded.amount
+                        """,
+                        (user_id, db_key, amount),
+                    )
+                else:
+                    await self.conn.execute(
+                        """
+                        INSERT INTO user_inventory (user_id, item_name, quantity, discovered)
+                        VALUES (?, ?, ?, 1)
+                        ON CONFLICT(user_id, item_name) DO UPDATE SET
+                            quantity = quantity + excluded.quantity,
+                            discovered = 1
+                        """,
+                        (user_id, db_key, amount),
+                    )
+                return True
+
+    async def remove_item_or_currency(
+        self, user_id: str, db_key: str, category: str, amount: int
+    ) -> bool:
+        amount = int(amount)
+        if amount <= 0:
+            return True
+        await self._check_conn()
+        async with self._lock:
+            async with self.transaction():
+                if category == "currency":
+                    async with self.conn.execute(
+                        """
+                        UPDATE user_currencies
+                        SET amount = amount - ?
+                        WHERE user_id = ? AND currency_type = ? AND amount >= ?
+                        """,
+                        (amount, user_id, db_key, amount),
+                    ) as cur:
+                        if cur.rowcount == 0:
+                            return False
+                    await self.conn.execute(
+                        "DELETE FROM user_currencies WHERE user_id = ? AND currency_type = ? AND amount <= 0",
+                        (user_id, db_key),
+                    )
+                    return True
+                else:
+                    async with self.conn.execute(
+                        """
+                        UPDATE user_inventory
+                        SET quantity = quantity - ?
+                        WHERE user_id = ? AND item_name = ? AND quantity >= ?
+                        """,
+                        (amount, user_id, db_key, amount),
+                    ) as cur:
+                        if cur.rowcount == 0:
+                            return False
+                    await self.conn.execute(
+                        "DELETE FROM user_inventory WHERE user_id = ? AND item_name = ? AND quantity <= 0 AND discovered = 0",
+                        (user_id, db_key),
+                    )
+                    return True
 
     async def get_user_data(self, user_id: str) -> Optional[Dict[str, Any]]:
         await self._check_conn()
@@ -425,9 +524,10 @@ class Database:
                 "SELECT item_name, quantity, discovered FROM user_inventory WHERE user_id = ?",
                 (user_id,),
             ) as cursor:
+                inv_rows = await cursor.fetchall()
                 inventory = {}
                 discovered = {}
-                async for row in cursor:
+                for row in inv_rows:
                     if row["quantity"] > 0:
                         inventory[row["item_name"]] = row["quantity"]
                     discovered[row["item_name"]] = bool(row["discovered"])
@@ -438,8 +538,9 @@ class Database:
                 "SELECT category, upgrade_key, tier FROM user_upgrades WHERE user_id = ?",
                 (user_id,),
             ) as cursor:
+                upg_rows = await cursor.fetchall()
                 upgrades = {"luck": {}, "roll": {}, "clover": {}}
-                async for row in cursor:
+                for row in upg_rows:
                     if row["category"] not in upgrades:
                         upgrades[row["category"]] = {}
                     upgrades[row["category"]][row["upgrade_key"]] = row["tier"]
@@ -448,8 +549,9 @@ class Database:
             async with self.conn.execute(
                 "SELECT currency_type, amount FROM user_currencies WHERE user_id = ?", (user_id,)
             ) as cursor:
+                curr_rows = await cursor.fetchall()
                 currencies = {}
-                async for row in cursor:
+                for row in curr_rows:
                     if row["amount"] > 0:
                         currencies[row["currency_type"]] = row["amount"]
                 user_data["currencies"] = currencies
@@ -462,10 +564,21 @@ class Database:
             async with self.transaction():
                 async with self.conn.execute(
                     """
-                    INSERT OR REPLACE INTO users 
+                    INSERT INTO users 
                     (user_id, roll_count, highscore, luck_multi, max_luck, clover_multi, 
                         clover_every, clovers_earned, luck_override, autoroll_active, pit_luck)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        roll_count = excluded.roll_count,
+                        highscore = excluded.highscore,
+                        luck_multi = excluded.luck_multi,
+                        max_luck = excluded.max_luck,
+                        clover_multi = excluded.clover_multi,
+                        clover_every = excluded.clover_every,
+                        clovers_earned = excluded.clovers_earned,
+                        luck_override = excluded.luck_override,
+                        autoroll_active = excluded.autoroll_active,
+                        pit_luck = excluded.pit_luck
                 """,
                     (
                         user_id,
@@ -572,7 +685,8 @@ class Database:
             async with self.conn.execute(
                 "SELECT user_id FROM users WHERE autoroll_active = 1"
             ) as cursor:
-                return [row["user_id"] async for row in cursor]
+                rows = await cursor.fetchall()
+                return [row["user_id"] for row in rows]
 
     async def set_autoroll_status(self, user_id: str, active: bool):
         """Enable or disable autoroll for a user"""
@@ -585,7 +699,7 @@ class Database:
                 await self._commit_if_not_in_tx()
 
     async def bulk_update_autoroll(self, updates: List[Dict[str, Any]]):
-        """Bulk update user data for autoroll processing"""
+        """Bulk update user data for autoroll and manual roll delta processing"""
         if not updates:
             return
         await self._check_conn()
@@ -615,9 +729,14 @@ class Database:
                     ):
                         pass
 
-                    # Update inventory
-                    for item_name, quantity_diff in up.get("inventory_diff", {}).items():
-                        async with self.conn.execute(
+                    # Update inventory in a single executemany batch
+                    inv_diff = up.get("inventory_diff")
+                    if inv_diff:
+                        inv_rows = [
+                            (user_id, item_name, quantity_diff)
+                            for item_name, quantity_diff in inv_diff.items()
+                        ]
+                        await self.conn.executemany(
                             """
                             INSERT INTO user_inventory (user_id, item_name, quantity, discovered)
                             VALUES (?, ?, ?, 1)
@@ -625,22 +744,25 @@ class Database:
                             quantity = quantity + excluded.quantity,
                             discovered = 1
                         """,
-                            (user_id, item_name, quantity_diff),
-                        ):
-                            pass
+                            inv_rows,
+                        )
 
-                    # Update currencies
-                    for curr_type, amount_diff in up.get("currency_diff", {}).items():
-                        async with self.conn.execute(
+                    # Update currencies in a single executemany batch
+                    curr_diff = up.get("currency_diff")
+                    if curr_diff:
+                        curr_rows = [
+                            (user_id, curr_type, amount_diff)
+                            for curr_type, amount_diff in curr_diff.items()
+                        ]
+                        await self.conn.executemany(
                             """
                             INSERT INTO user_currencies (user_id, currency_type, amount)
                             VALUES (?, ?, ?)
                             ON CONFLICT(user_id, currency_type) DO UPDATE SET
                             amount = amount + excluded.amount
                         """,
-                            (user_id, curr_type, amount_diff),
-                        ):
-                            pass
+                            curr_rows,
+                        )
 
     async def add_rare_hit(self, user_id: str, rarity_name: str, one_in: float, total_luck: float):
         """Store a meaningful roll in the database"""
@@ -680,7 +802,8 @@ class Database:
             """,
                 (user_id, limit),
             ) as cursor:
-                return [dict(row) async for row in cursor]
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
 
     # --- User Parameters ---
 
@@ -766,7 +889,8 @@ class Database:
             async with self.conn.execute(
                 "SELECT * FROM user_personas WHERE user_id = ?", (user_id,)
             ) as cur:
-                async for row in cur:
+                rows = await cur.fetchall()
+                for row in rows:
                     personas[row["persona_name"]] = {
                         "user_persona": row["user_persona"],
                         "ai_persona": row["ai_persona"],
@@ -1081,28 +1205,28 @@ class Database:
 
         async with self._lock:
             async with self.conn.execute(sql, params) as cur:
-                async for row in cur:
-                    ids = json.loads(row["message_ids"] or "[]")
-                    if message_id in ids or str(message_id) in [str(x) for x in ids]:
-                        if new_message_ids is not None:
-                            clean_ids = [
-                                int(mid) if str(mid).isdigit() else str(mid)
-                                for mid in new_message_ids
-                            ]
-                            ids_json = json.dumps(clean_ids)
-                            async with self.conn.execute(
-                                "UPDATE conversation_history SET content=?, message_ids=? WHERE id=?",
-                                (new_content, ids_json, row["id"]),
-                            ):
-                                await self._commit_if_not_in_tx()
-                                return True
-                        else:
-                            async with self.conn.execute(
-                                "UPDATE conversation_history SET content=? WHERE id=?",
-                                (new_content, row["id"]),
-                            ):
-                                await self._commit_if_not_in_tx()
-                                return True
+                rows = await cur.fetchall()
+            for row in rows:
+                ids = json.loads(row["message_ids"] or "[]")
+                if message_id in ids or str(message_id) in [str(x) for x in ids]:
+                    if new_message_ids is not None:
+                        clean_ids = [
+                            int(mid) if str(mid).isdigit() else str(mid) for mid in new_message_ids
+                        ]
+                        ids_json = json.dumps(clean_ids)
+                        async with self.conn.execute(
+                            "UPDATE conversation_history SET content=?, message_ids=? WHERE id=?",
+                            (new_content, ids_json, row["id"]),
+                        ):
+                            await self._commit_if_not_in_tx()
+                            return True
+                    else:
+                        async with self.conn.execute(
+                            "UPDATE conversation_history SET content=? WHERE id=?",
+                            (new_content, row["id"]),
+                        ):
+                            await self._commit_if_not_in_tx()
+                            return True
         return False
 
     async def delete_message_from_history(
@@ -1121,15 +1245,16 @@ class Database:
         deleted_ids = []
         async with self._lock:
             async with self.conn.execute(sql, params) as cur:
-                async for row in cur:
-                    ids = json.loads(row["message_ids"] or "[]")
-                    if message_id in ids or str(message_id) in [str(x) for x in ids]:
-                        deleted_ids = ids
-                        async with self.conn.execute(
-                            "DELETE FROM conversation_history WHERE id=?", (row["id"],)
-                        ):
-                            await self._commit_if_not_in_tx()
-                            return deleted_ids or [message_id]
+                rows = await cur.fetchall()
+            for row in rows:
+                ids = json.loads(row["message_ids"] or "[]")
+                if message_id in ids or str(message_id) in [str(x) for x in ids]:
+                    deleted_ids = ids
+                    async with self.conn.execute(
+                        "DELETE FROM conversation_history WHERE id=?", (row["id"],)
+                    ):
+                        await self._commit_if_not_in_tx()
+                        return deleted_ids or [message_id]
         return deleted_ids
 
     async def get_message_ids_for_reply(
@@ -1147,10 +1272,11 @@ class Database:
             params = (guild_id,)
         async with self._lock:
             async with self.conn.execute(sql, params) as cur:
-                async for row in cur:
-                    ids = json.loads(row["message_ids"] or "[]")
-                    if message_id in ids or str(message_id) in [str(x) for x in ids]:
-                        return ids
+                rows = await cur.fetchall()
+            for row in rows:
+                ids = json.loads(row["message_ids"] or "[]")
+                if message_id in ids or str(message_id) in [str(x) for x in ids]:
+                    return ids
         return [message_id]
 
     async def delete_messages_from_history_bulk(self, guild_id: str, message_ids: List[int]) -> int:
@@ -1169,14 +1295,15 @@ class Database:
                     "SELECT id, message_ids FROM conversation_history WHERE guild_id = ?",
                     (str(guild_id),),
                 ) as cursor:
+                    rows = await cursor.fetchall()
                     rows_to_delete = []
-                    async for row in cursor:
+                    for row in rows:
                         if row["message_ids"]:
                             try:
                                 ids = json.loads(row["message_ids"])
                                 if any(mid in target_set for mid in ids):
                                     rows_to_delete.append(row["id"])
-                            except:
+                            except Exception:
                                 continue
 
                     if rows_to_delete:
@@ -1237,19 +1364,16 @@ class Database:
 
         async with self._lock:
             async with self.conn.execute(sql1, params1) as cur:
-                async for row in cur:
-                    ids = json.loads(row["message_ids"] or "[]")
-                    if bot_message_id in ids or str(bot_message_id) in [str(x) for x in ids]:
-                        if row["author_id"] and str(row["author_id"]) == str(reactor_id):
+                rows = await cur.fetchall()
+            for row in rows:
+                ids = json.loads(row["message_ids"] or "[]")
+                if bot_message_id in ids or str(bot_message_id) in [str(x) for x in ids]:
+                    if row["author_id"] and str(row["author_id"]) == str(reactor_id):
+                        return True
+                    async with self.conn.execute(sql2, params2(row["id"])) as prev_cur:
+                        prev = await prev_cur.fetchone()
+                        if prev and prev["author_id"] and str(prev["author_id"]) == str(reactor_id):
                             return True
-                        async with self.conn.execute(sql2, params2(row["id"])) as prev_cur:
-                            prev = await prev_cur.fetchone()
-                            if (
-                                prev
-                                and prev["author_id"]
-                                and str(prev["author_id"]) == str(reactor_id)
-                            ):
-                                return True
         return False
 
     async def get_context_for_message(self, user_id, is_dm, guild_id, message_id, channel_id=None):
@@ -1273,11 +1397,12 @@ class Database:
 
         async with self._lock:
             async with self.conn.execute(sql1, params1) as cur:
-                async for row in cur:
-                    ids = json.loads(row["message_ids"] or "[]")
-                    if message_id in ids or str(message_id) in [str(x) for x in ids]:
-                        target_row = row
-                        break
+                rows1 = await cur.fetchall()
+            for row in rows1:
+                ids = json.loads(row["message_ids"] or "[]")
+                if message_id in ids or str(message_id) in [str(x) for x in ids]:
+                    target_row = row
+                    break
 
             if not target_row:
                 return None, None
@@ -1328,17 +1453,18 @@ class Database:
 
         async with self._lock:
             async with self.conn.execute(sql1, params1) as cur:
-                async for row in cur:
-                    ids = json.loads(row["message_ids"] or "[]")
-                    if message_id in ids or str(message_id) in [str(x) for x in ids]:
-                        row_dict = dict(row)
-                        if row_dict.get("author_id"):
-                            return str(row_dict["author_id"])
-                        async with self.conn.execute(sql2, params2(row["id"])) as prev_cur:
-                            prev = await prev_cur.fetchone()
-                            if prev and dict(prev).get("author_id"):
-                                return str(dict(prev)["author_id"])
-                        break
+                rows = await cur.fetchall()
+            for row in rows:
+                ids = json.loads(row["message_ids"] or "[]")
+                if message_id in ids or str(message_id) in [str(x) for x in ids]:
+                    row_dict = dict(row)
+                    if row_dict.get("author_id"):
+                        return str(row_dict["author_id"])
+                    async with self.conn.execute(sql2, params2(row["id"])) as prev_cur:
+                        prev = await prev_cur.fetchone()
+                        if prev and dict(prev).get("author_id"):
+                            return str(dict(prev)["author_id"])
+                    break
         return None
 
     async def get_unsummarized_messages(self, user_id, last_summary_time):
@@ -1369,13 +1495,15 @@ class Database:
                 SELECT guild_id, COUNT(*) as cnt FROM conversation_history 
                 WHERE guild_id IS NOT NULL GROUP BY guild_id ORDER BY cnt DESC LIMIT 10
             """) as cur:
-                stats["top_guilds"] = [(row[0], row[1]) async for row in cur]
+                rows = await cur.fetchall()
+                stats["top_guilds"] = [(row[0], row[1]) for row in rows]
 
             async with self.conn.execute("""
                 SELECT user_id, COUNT(*) as cnt FROM conversation_history 
                 WHERE user_id IS NOT NULL GROUP BY user_id ORDER BY cnt DESC LIMIT 10
             """) as cur:
-                stats["top_users"] = [(row[0], row[1]) async for row in cur]
+                rows = await cur.fetchall()
+                stats["top_users"] = [(row[0], row[1]) for row in rows]
 
         return stats
 
@@ -1388,7 +1516,8 @@ class Database:
                 "SELECT message_ids FROM conversation_history WHERE guild_id = ? AND role = 'assistant'",
                 (str(guild_id),),
             ) as cursor:
-                async for row in cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
                     if row["message_ids"]:
                         try:
                             ids = json.loads(row["message_ids"])

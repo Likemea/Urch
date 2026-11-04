@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -5,6 +6,7 @@ from collections import Counter
 
 from systems.core.database import db
 from systems.game.utils import (
+    RARITY_INDEX_MAP,
     roll_rarities,
     update_user_data,
     ensure_user,
@@ -29,6 +31,14 @@ def _build_roll_footer(buff_data: dict) -> str:
     if biome_banner:
         parts.append(f"Biome: {biome_banner}")
     return " • ".join(parts)
+
+
+async def _dispatch_rare_roll_logs(bot, user, all_rolls: list[str], total_luck: float):
+    threshold = max(1.0, float(total_luck or 0.0)) * 100.0
+    for r in all_rolls:
+        weight = RARITY_WEIGHT_MAP.get(r)
+        if weight and (TOTAL_RARITY_WEIGHT / weight) >= threshold:
+            await check_and_log_rarity(bot, user, r, total_luck=total_luck)
 
 
 class ButtonView(discord.ui.View):
@@ -56,7 +66,7 @@ class ButtonView(discord.ui.View):
                 base_luck = user.get("luck_multi", 1.0)
                 luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get("exp_bonus", 1.0)
 
-            buff_data = await evaluate_active_buffs(self.user_id, context="manual")
+            buff_data = await evaluate_active_buffs(self.user_id, context="manual", user_obj=user)
             luck *= buff_data["luck_mult"]
             luck = max(1.0, float(luck or 0.0))
 
@@ -70,17 +80,15 @@ class ButtonView(discord.ui.View):
                 all_rolls,
                 action="keep",
                 clover_mult=buff_data.get("clover_mult", 1.0),
+                user_obj=user,
             )
             if not updated_user:
                 updated_user = user
 
-        for r in all_rolls:
-            await check_and_log_rarity(self.bot, interaction.user, r, total_luck=luck)
-
         counts = Counter(all_rolls)
         sorted_results = sorted(
             counts.items(),
-            key=lambda x: RARITY_ORDER.index(x[0]) if x[0] in RARITY_ORDER else -1,
+            key=lambda x: RARITY_INDEX_MAP.get(x[0], -1),
             reverse=True,
         )
 
@@ -114,6 +122,7 @@ class ButtonView(discord.ui.View):
         self.rarity = all_rolls[0] if all_rolls else self.rarity
 
         await interaction.edit_original_response(embed=new_embed, view=self)
+        asyncio.create_task(_dispatch_rare_roll_logs(self.bot, interaction.user, all_rolls, luck))
 
 
 async def check_and_log_rarity(bot, user, rarity_name, total_luck=None):
@@ -163,7 +172,7 @@ class RollCommand(commands.Cog):
                 base_luck = user.get("luck_multi", 1.0)
                 luck = (base_luck + bonuses.get("luck_bonus", 0.0)) * bonuses.get("exp_bonus", 1.0)
 
-            buff_data = await evaluate_active_buffs(user_id, context="manual")
+            buff_data = await evaluate_active_buffs(user_id, context="manual", user_obj=user)
             luck *= buff_data["luck_mult"]
             luck = max(1.0, float(luck or 0.0))
 
@@ -173,18 +182,19 @@ class RollCommand(commands.Cog):
             all_rolls = await roll_rarities(user_id, count=total_rolls, provided_luck=luck)
             all_rolls, duped_rolls = apply_dupe_buff(all_rolls, buff_data)
             updated_user = await update_user_data(
-                user_id, all_rolls, action="keep", clover_mult=buff_data.get("clover_mult", 1.0)
+                user_id,
+                all_rolls,
+                action="keep",
+                clover_mult=buff_data.get("clover_mult", 1.0),
+                user_obj=user,
             )
             if not updated_user:
                 updated_user = user
 
-            for r in all_rolls:
-                await check_and_log_rarity(self.bot, interaction.user, r, total_luck=luck)
-
         counts = Counter(all_rolls)
         sorted_results = sorted(
             counts.items(),
-            key=lambda x: RARITY_ORDER.index(x[0]) if x[0] in RARITY_ORDER else -1,
+            key=lambda x: RARITY_INDEX_MAP.get(x[0], -1),
             reverse=True,
         )
 
@@ -216,6 +226,7 @@ class RollCommand(commands.Cog):
         first_rarity = all_rolls[0] if all_rolls else ""
         view = ButtonView(user_id, first_rarity, self.bot)
         await interaction.followup.send(embed=embed, view=view)
+        asyncio.create_task(_dispatch_rare_roll_logs(self.bot, interaction.user, all_rolls, luck))
 
 
 async def setup(bot):

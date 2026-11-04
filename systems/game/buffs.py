@@ -1,7 +1,7 @@
 # Urch/buffs.py
 import random
 import time
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from systems.game.utils import currency_count, currency_remove, currency_add
 from systems.game.recipes import POTION_RECIPES
 from systems.game.raritylist import RARITIES
@@ -48,7 +48,9 @@ async def apply_potion_craft(user_id: str, potion_id: str, amount: int = 1) -> b
     return True
 
 
-async def evaluate_active_buffs(user_id: str, context: str) -> Dict[str, Any]:
+async def evaluate_active_buffs(
+    user_id: str, context: str, user_obj: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
     Evaluates all active potions for context ('manual' or 'autoroll').
     Deducts 1 charge for charge-based potions.
@@ -73,21 +75,43 @@ async def evaluate_active_buffs(user_id: str, context: str) -> Dict[str, Any]:
 
         if buff["type"] == "charges":
             key = f"potion_charge_{p_id}"
-            is_active = await currency_remove(user_id, key, 1)
+            charges = (
+                await currency_count(user_id, key, user_obj=user_obj)
+                if user_obj is not None
+                else await currency_count(user_id, key)
+            )
+            if charges > 0:
+                is_active = (
+                    await currency_remove(user_id, key, 1, user_obj=user_obj)
+                    if user_obj is not None
+                    else await currency_remove(user_id, key, 1)
+                )
 
         elif buff["type"] == "duration":
             key = f"potion_exp_{p_id}"
-            exp_time = await currency_count(user_id, key)
+            exp_time = (
+                await currency_count(user_id, key, user_obj=user_obj)
+                if user_obj is not None
+                else await currency_count(user_id, key)
+            )
             if exp_time > now + MAX_POTION_DURATION:
                 # Clamp to max allowed duration rather than wiping out to 1 potion
-                await currency_remove(user_id, key, exp_time)
-                exp_time = now + MAX_POTION_DURATION
-                await currency_add(user_id, key, exp_time)
+                if user_obj is not None:
+                    await currency_remove(user_id, key, exp_time, user_obj=user_obj)
+                    exp_time = now + MAX_POTION_DURATION
+                    await currency_add(user_id, key, exp_time, user_obj=user_obj)
+                else:
+                    await currency_remove(user_id, key, exp_time)
+                    exp_time = now + MAX_POTION_DURATION
+                    await currency_add(user_id, key, exp_time)
 
             if exp_time > now:
                 is_active = True
             elif exp_time > 0:
-                await currency_remove(user_id, key, exp_time)
+                if user_obj is not None:
+                    await currency_remove(user_id, key, exp_time, user_obj=user_obj)
+                else:
+                    await currency_remove(user_id, key, exp_time)
 
         if is_active:
             results["luck_mult"] *= buff.get("luck_mult", 1.0)
