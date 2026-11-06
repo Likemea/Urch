@@ -547,8 +547,7 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             title_prefix = "🌍 Planetary Milestone!"
             color = discord.Color.green()
         else:
-            title_prefix = "🚨 Rare Roll!"
-            color = discord.Color.gold()
+            return
 
         embed = discord.Embed(
             title=f"{title_prefix}",
