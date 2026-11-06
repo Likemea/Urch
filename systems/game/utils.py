@@ -576,7 +576,7 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
 
             await _send_via_rarity_logger_webhook(channel, embed, None, avatar_url=avatar_url)
         else:
-            text = f"{title_prefix} **{user.name}** just rolled **{rarity_name}**!"
+            text = f"> {title_prefix} **{user.name}** just rolled **{rarity_name}**!"
             await _send_via_rarity_logger_webhook(channel, None, text, avatar_url=avatar_url)
 
     except Exception as e:
