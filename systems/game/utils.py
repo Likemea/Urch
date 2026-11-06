@@ -519,7 +519,7 @@ async def _send_via_rarity_logger_webhook(channel, embed, text, avatar_url=None)
             webhook = await channel.create_webhook(name="Rarity Logger")
         if channel_id is not None:
             _WEBHOOK_CACHE[channel_id] = webhook
-            
+
         if embed:
             await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
         else:
@@ -573,7 +573,7 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             embed.add_field(name="Rarity", value=f"1 in {one_in:,.0f}", inline=True)
             embed.set_thumbnail(url=user.display_avatar.url)
             embed.timestamp = discord.utils.utcnow()
-            
+
             await _send_via_rarity_logger_webhook(channel, embed, None, avatar_url=avatar_url)
         else:
             text = f"{title_prefix} **{user.name}** just rolled **{rarity_name}**!"
