@@ -508,7 +508,7 @@ async def _send_via_rarity_logger_webhook(channel, embed, text, avatar_url=None)
     try:
         if embed:
             await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
-        else: # send text
+        else:    # send text
             await webhook.send(content=text, username="Rarity Logger", avatar_url=avatar_url)
     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         if channel_id is not None:
@@ -522,7 +522,7 @@ async def _send_via_rarity_logger_webhook(channel, embed, text, avatar_url=None)
             
         if embed:
             await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
-        else: # send text
+        else:    # send text
             await webhook.send(content=text, username="Rarity Logger", avatar_url=avatar_url)
 
 
