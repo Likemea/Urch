@@ -508,7 +508,7 @@ async def _send_via_rarity_logger_webhook(channel, embed, text, avatar_url=None)
     try:
         if embed:
             await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
-        else:    # send text
+        else:
             await webhook.send(content=text, username="Rarity Logger", avatar_url=avatar_url)
     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         if channel_id is not None:
@@ -522,7 +522,7 @@ async def _send_via_rarity_logger_webhook(channel, embed, text, avatar_url=None)
             
         if embed:
             await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
-        else:    # send text
+        else:
             await webhook.send(content=text, username="Rarity Logger", avatar_url=avatar_url)
 
 
@@ -576,8 +576,8 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             
             await _send_via_rarity_logger_webhook(channel, embed, None, avatar_url=avatar_url)
         else:
-            text_content = f"{title_prefix} **{user.name}** just rolled **{rarity_name}**!"
-            await _send_via_rarity_logger_webhook(channel, None, text_content, avatar_url=avatar_url)
+            text = f"{title_prefix} **{user.name}** just rolled **{rarity_name}**!"
+            await _send_via_rarity_logger_webhook(channel, None, text, avatar_url=avatar_url)
 
     except Exception as e:
         print(f"Failed to log rare roll: {e}")
