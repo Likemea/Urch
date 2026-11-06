@@ -574,7 +574,7 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             embed.set_thumbnail(url=user.display_avatar.url)
             embed.timestamp = discord.utils.utcnow()
             
-            await _send_via_rarity_logger_webhook(channel, None, "test", avatar_url=avatar_url)
+            await _send_via_rarity_logger_webhook(channel, embed, None, avatar_url=avatar_url)
         else:
             text_content = f"{title_prefix} **{user.name}** just rolled **{rarity_name}**!"
             await _send_via_rarity_logger_webhook(channel, None, text_content, avatar_url=avatar_url)
