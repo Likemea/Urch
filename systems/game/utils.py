@@ -538,27 +538,27 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
         if one_in >= (total_luck * 1000000):
             title_prefix = "♾ *OMNIVERSAL MILESTONE!!!*"
             color = discord.Color.dark_theme()
-            is_embed = true
+            is_embed = True
         elif one_in >= (total_luck * 500000):
             title_prefix = "💠 *MULTIVERSAL MILESTONE!!*"
             color = discord.Color.purple()
-            is_embed = true
+            is_embed = True
         elif one_in >= (total_luck * 100000):
             title_prefix = "🪐 *UNIVERSAL MILESTONE!*"
             color = discord.Color.dark_purple()
-            is_embed = true
+            is_embed = True
         elif one_in >= (total_luck * 50000):
             title_prefix = "🌌 Galactic Milestone!!!"
             color = discord.Color.dark_blue()
-            is_embed = false
+            is_embed = False
         elif one_in >= (total_luck * 10000):
             title_prefix = "🌟 Stellar Milestone!!"
             color = discord.Color.blue()
-            is_embed = false
+            is_embed = False
         elif one_in >= (total_luck * 1000):
             title_prefix = "🌍 Planetary Milestone!"
             color = discord.Color.green()
-            is_embed = false
+            is_embed = False
         else:
             return
 
