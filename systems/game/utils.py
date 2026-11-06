@@ -493,7 +493,7 @@ async def process_autorolls(user_ids: List[str]):
     return rare_hits
 
 
-async def _send_via_rarity_logger_webhook(channel, embed, avatar_url=None):
+async def _send_via_rarity_logger_webhook(channel, embed, text, avatar_url=None):
     channel_id = getattr(channel, "id", None)
     webhook = _WEBHOOK_CACHE.get(channel_id) if channel_id is not None else None
 
@@ -506,7 +506,10 @@ async def _send_via_rarity_logger_webhook(channel, embed, avatar_url=None):
             _WEBHOOK_CACHE[channel_id] = webhook
 
     try:
-        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+        if embed:
+            await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+        else: # send text
+            await webhook.send(content=text, username="Rarity Logger", avatar_url=avatar_url)
     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         if channel_id is not None:
             _WEBHOOK_CACHE.pop(channel_id, None)
@@ -516,7 +519,11 @@ async def _send_via_rarity_logger_webhook(channel, embed, avatar_url=None):
             webhook = await channel.create_webhook(name="Rarity Logger")
         if channel_id is not None:
             _WEBHOOK_CACHE[channel_id] = webhook
-        await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+            
+        if embed:
+            await webhook.send(embed=embed, username="Rarity Logger", avatar_url=avatar_url)
+        else: # send text
+            await webhook.send(content=text, username="Rarity Logger", avatar_url=avatar_url)
 
 
 async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
@@ -531,36 +538,46 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
         if one_in >= (total_luck * 1000000):
             title_prefix = "♾ *OMNIVERSAL MILESTONE!!!*"
             color = discord.Color.dark_theme()
+            is_embed = true
         elif one_in >= (total_luck * 500000):
             title_prefix = "💠 *MULTIVERSAL MILESTONE!!*"
             color = discord.Color.purple()
+            is_embed = true
         elif one_in >= (total_luck * 100000):
             title_prefix = "🪐 *UNIVERSAL MILESTONE!*"
             color = discord.Color.dark_purple()
+            is_embed = true
         elif one_in >= (total_luck * 50000):
             title_prefix = "🌌 Galactic Milestone!!!"
             color = discord.Color.dark_blue()
+            is_embed = false
         elif one_in >= (total_luck * 10000):
             title_prefix = "🌟 Stellar Milestone!!"
             color = discord.Color.blue()
+            is_embed = false
         elif one_in >= (total_luck * 1000):
             title_prefix = "🌍 Planetary Milestone!"
             color = discord.Color.green()
+            is_embed = false
         else:
             return
 
-        embed = discord.Embed(
-            title=f"{title_prefix}",
-            description=f"**{user.name}** just rolled **{rarity_name}**!",
-            color=color,
-        )
-        embed.add_field(name="Luck", value=format_number(total_luck), inline=True)
-        embed.add_field(name="Rarity", value=f"1 in {one_in:,.0f}", inline=True)
-        embed.set_thumbnail(url=user.display_avatar.url)
-        embed.timestamp = discord.utils.utcnow()
-
         avatar_url = bot.user.display_avatar.url if getattr(bot, "user", None) else None
-        await _send_via_rarity_logger_webhook(channel, embed, avatar_url=avatar_url)
+        if is_embed:
+            embed = discord.Embed(
+                title=f"{title_prefix}",
+                description=f"**{user.name}** just rolled **{rarity_name}**!",
+                color=color,
+            )
+            embed.add_field(name="Luck", value=format_number(total_luck), inline=True)
+            embed.add_field(name="Rarity", value=f"1 in {one_in:,.0f}", inline=True)
+            embed.set_thumbnail(url=user.display_avatar.url)
+            embed.timestamp = discord.utils.utcnow()
+            
+            await _send_via_rarity_logger_webhook(channel, embed, None, avatar_url=avatar_url)
+        else:
+            text_content = f"{title_prefix} **{user.name}** just rolled **{rarity_name}**!"
+            await _send_via_rarity_logger_webhook(channel, None, text_content, avatar_url=avatar_url)
 
     except Exception as e:
         print(f"Failed to log rare roll: {e}")
