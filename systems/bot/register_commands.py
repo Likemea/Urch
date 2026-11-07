@@ -212,6 +212,11 @@ commands = [
                 "type": 1,  # SUB COMMAND
             },
             {
+                "name": "fuel",
+                "description": "View your current fuel amounts",
+                "type": 1,  # SUB COMMAND
+            },
+            {
                 "name": "craft",
                 "description": "Refine Items or Compounds",
                 "type": 1,  # SUB COMMAND
