@@ -1,7 +1,16 @@
-# Urch/register_commands.py
-import requests
-import json
-from systems.core import config
+# systems/bot/register_commands.py
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import json  # noqa: E402
+
+import requests  # noqa: E402
+
+from systems.core import config  # noqa: E402
 
 APPLICATION_ID = config.APPLICATION_ID
 BOT_TOKEN = config.BOT_TOKEN
