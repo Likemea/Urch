@@ -12,7 +12,7 @@ from systems.game.utils import (
 
 
 class RefineryCommand(
-    commands.Cog,group_name="refinery",group_description="Refine Items and Compounds"
+    commands.GroupCog, group_name="refinery", group_description="Refine Items and Compounds"
 ):
     def __init__(self, bot):
         self.bot = bot
@@ -26,6 +26,7 @@ class RefineryCommand(
             pass
         user_id = str(interaction.user.id)
         user = await ensure_user(user_id)
+
 
 async def setup(bot):
     await bot.add_cog(RefineryCommand(bot))
