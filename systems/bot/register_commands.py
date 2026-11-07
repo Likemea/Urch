@@ -200,6 +200,42 @@ commands = [
         "contexts": CONTEXTS,
     },
     {
+        "name": "refinery",
+        "type": 1,
+        "description": "Refine Items or Compounds"
+        "integration_types": INTEGRATION_TYPES,
+        "contexts": CONTEXTS,
+        "options": [
+            {
+                "name": "view",
+                "description": "View Recipes"
+                "type": 1,  # SUB COMMAND
+            },
+            {
+                "name": "craft",
+                "description": "Refine Items or Compounds",
+                "type": 1,  # SUB COMMAND
+                "options": [
+                    {
+                        "name": "recipe_id",
+                        "description": "The recipe ID of the item to craft",
+                        "type": 3,  # STRING
+                        "required": True,
+                        "autocomplete": True,
+                    },
+                    {
+                        "name": "amount",
+                        "description": "The amount of items to craft (1-1000)",
+                        "type": 4,  # INTEGER
+                        "required": False,
+                        "min_value": 1,
+                        "max_value": 1000,
+                    },
+                ],
+            },
+        ],
+    },
+    {
         "name": "biome",
         "type": 1,
         "description": "View the current server-wide biome event or browse all biomes",
