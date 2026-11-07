@@ -11,13 +11,15 @@ from systems.game.utils import (
 )
 
 
-class RefineryCommand(commands.Cog,group_name="refinery",group_description="Refine Items and Compounds"):
+class RefineryCommand(
+    commands.Cog,group_name="refinery",group_description="Refine Items and Compounds"
+):
     def __init__(self, bot):
         self.bot = bot
         super().__init__()
-    
+
     @app_commands.command(name="view",description="View recipes")
-    async def view():
+    async def view(self, interaction: discord.Interaction):
         try:
             await interaction.response.defer()
         except TypeError:
