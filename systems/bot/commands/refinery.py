@@ -11,6 +11,22 @@ from systems.game.utils import (
 )
 
 
+class RefineryView(discord.ui.View):
+    def __init__(
+        self,
+        user_id: str,
+        inventory: dict[str, int],
+        bot=None,
+    ):
+        super().__init__(timeout=180)
+        self.user_id = str(user_id)
+        self.inventory = dict(inventory)
+        self.bot = bot
+
+        self.tab = 0  # each item recipe is grouped into a category
+        self.page = 0
+
+
 class RefineryCommand(
     commands.GroupCog, group_name="refinery", group_description="Refine Items and Compounds"
 ):
@@ -20,12 +36,7 @@ class RefineryCommand(
 
     @app_commands.command(name="view", description="View recipes")
     async def view(self, interaction: discord.Interaction):
-        try:
-            await interaction.response.defer()
-        except TypeError:
-            pass
         user_id = str(interaction.user.id)
-        user = await ensure_user(user_id)
 
 
 async def setup(bot):
