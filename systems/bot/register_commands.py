@@ -202,7 +202,7 @@ commands = [
     {
         "name": "refinery",
         "type": 1,
-        "description": "Refine Items or Compounds"
+        "description": "Refine Items or Compounds",
         "integration_types": INTEGRATION_TYPES,
         "contexts": CONTEXTS,
         "options": [
@@ -225,11 +225,11 @@ commands = [
                     },
                     {
                         "name": "amount",
-                        "description": "The amount of items to craft (1-1000)",
+                        "description": "The amount of items to craft (1-1,000,000)",
                         "type": 4,  # INTEGER
                         "required": False,
                         "min_value": 1,
-                        "max_value": 1000,
+                        "max_value": 1000000,
                     },
                 ],
             },
