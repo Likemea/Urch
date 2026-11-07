@@ -18,7 +18,7 @@ class RefineryCommand(
         self.bot = bot
         super().__init__()
 
-    @app_commands.command(name="view",description="View recipes")
+    @app_commands.command(name="view", description="View recipes")
     async def view(self, interaction: discord.Interaction):
         try:
             await interaction.response.defer()
