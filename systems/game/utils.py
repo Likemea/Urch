@@ -539,26 +539,32 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             title_prefix = "♾ *OMNIVERSAL MILESTONE!!!*"
             color = discord.Color.dark_theme()
             is_embed = True
+            text_size = None
         elif one_in >= (total_luck * 500000):
             title_prefix = "💠 *MULTIVERSAL MILESTONE!!*"
             color = discord.Color.purple()
-            is_embed = True
+            is_embed = False
+            text_size = "Big"
         elif one_in >= (total_luck * 100000):
             title_prefix = "🪐 *UNIVERSAL MILESTONE!*"
             color = discord.Color.dark_purple()
-            is_embed = True
+            is_embed = False
+            text_size = "Medium"
         elif one_in >= (total_luck * 50000):
             title_prefix = "🌌 Galactic Milestone!!!"
             color = discord.Color.dark_blue()
             is_embed = False
+            text_size = "Small"
         elif one_in >= (total_luck * 10000):
             title_prefix = "🌟 Stellar Milestone!!"
             color = discord.Color.blue()
             is_embed = False
+            text_size = "Small"
         elif one_in >= (total_luck * 1000):
             title_prefix = "🌍 Planetary Milestone!"
             color = discord.Color.green()
             is_embed = False
+            text_size = "Tiny"
         else:
             return
 
@@ -575,8 +581,17 @@ async def log_rare_roll(bot, user, rarity_name, one_in, total_luck):
             embed.timestamp = discord.utils.utcnow()
 
             await _send_via_rarity_logger_webhook(channel, embed, None, avatar_url=avatar_url)
-        else:
+        elif text_size == "Big":
+            text = f"> # {title_prefix} **{user.name}** just rolled **{rarity_name}**!"
+            await _send_via_rarity_logger_webhook(channel, None, text, avatar_url=avatar_url)
+        elif text_size == "Medium":
+            text = f"> ## {title_prefix} **{user.name}** just rolled **{rarity_name}**!"
+            await _send_via_rarity_logger_webhook(channel, None, text, avatar_url=avatar_url)
+        elif text_size == "Small":
             text = f"> {title_prefix} **{user.name}** just rolled **{rarity_name}**!"
+            await _send_via_rarity_logger_webhook(channel, None, text, avatar_url=avatar_url)
+        elif text_size == "Tiny":
+            text = f"> -# {title_prefix} **{user.name}** just rolled **{rarity_name}**!"
             await _send_via_rarity_logger_webhook(channel, None, text, avatar_url=avatar_url)
 
     except Exception as e:
