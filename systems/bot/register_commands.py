@@ -208,7 +208,7 @@ commands = [
         "options": [
             {
                 "name": "view",
-                "description": "View Recipes"
+                "description": "View Recipes",
                 "type": 1,  # SUB COMMAND
             },
             {
