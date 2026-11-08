@@ -72,7 +72,7 @@ REFINERY_TABS = [
             "diesel": {"diesel_recipe"},
         }
     },
-    {. # tab 1: autoroll fuel
+    {  # tab 1: autoroll fuel
         "recipes": {
             "cfuel_mk1": {"cfuel_mk1_recipe"},
             "cfuel_mk2": {
