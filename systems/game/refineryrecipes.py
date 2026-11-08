@@ -26,11 +26,13 @@ REFINERY_RECIPES = {
         "input": {"common": 1},
         "output": {"defaultite": 1},
         "base_time": 0.53,
+        "tier": 1,
     },
     "diesel_recipe": {
         "input": {"charge": 1},
         "output": {"diesel": 1},
-        "base_time": 10,
+        "base_time": 0,
+        "tier": 0,
     },
     "cfuel_mk1_recipe": {
         "input": {
@@ -39,6 +41,7 @@ REFINERY_RECIPES = {
         },
         "output": {"cfuel_mk1": 1},
         "base_time": 60,
+        "tier": 1,
     },
     "cfuel_mk2_recipe": {
         "input": {
@@ -52,6 +55,7 @@ REFINERY_RECIPES = {
             "luminary": 1,
         },
         "base_time": 240,
+        "tier": 2,
     },
     "cfuel_mk2_recipe_depleted": {
         "input": {
@@ -63,6 +67,7 @@ REFINERY_RECIPES = {
         },
         "output": {"cfuel_mk2": 5},
         "base_time": 120,
+        "tier": 2,
     },
 }
 
