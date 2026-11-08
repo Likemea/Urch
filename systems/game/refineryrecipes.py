@@ -11,7 +11,7 @@ REFINERY_RECIPES = {
         "output": {"diesel": 1},
         "base_time": 10,
     },
-    "diesel_superlarp" = {
+    "diesel_superlarp": {
         "input": {"charge": 100000},
         "output": {"diesel": 1},
         "base_time": 1,
