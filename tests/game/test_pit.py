@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from systems.bot.commands.pit import (
+    PIT_SACRIFICE_EFFICIENCY,
+    RARITY_NAME_TO_ID,
     PitView,
     calculate_sacrifice_qty,
     find_closest_rarity_for_value,
@@ -60,8 +62,8 @@ async def test_pit_view_interactive_sacrifice_flow(tmp_path):
         uid = "pit_user_1"
         user = await ensure_user(uid)
         woah_name = RARITY_ID_TO_NAME["woah"]  # 1 in 1T
-        big_bang_name = RARITY_ID_TO_NAME["big_bang"]  # 1 in 16.5T (taxed from 100T)
-        user["inventory"] = {woah_name: 101}
+        big_bang_name = RARITY_ID_TO_NAME["big_bang"]  # 1 in 16.5T (taxed from 112.5T)
+        user["inventory"] = {woah_name: 151}
         user["discovered"] = {woah_name: True}
         await save_user_data(uid, user)
 
@@ -75,8 +77,8 @@ async def test_pit_view_interactive_sacrifice_flow(tmp_path):
         plan, total_val = view.compute_sacrifice_plan()
         assert len(plan) == 1
         assert plan[0][0] == woah_name
-        assert plan[0][1] == 100
-        assert abs(total_val - 1e14) / 1e14 < 1e-6
+        assert plan[0][1] == 150
+        assert abs(total_val - 1.125e14) / 1.125e14 < 1e-6
 
         await view.on_confirm_sacrifice(inter)
 
@@ -225,12 +227,12 @@ async def test_pit_sacrifice_awards_luck(monkeypatch):
 
     await view.on_confirm_sacrifice(interaction)
 
-    # 9 * 10,000 = 90,000. 90,000^0.40 * (0.5 * 1) = 47.9366
-    expected_luck = round(10.0 + 47.9366, 4)
+    # 9 * 10,000 * 0.75 = 67,500. 67,500^0.40 * (0.5 * 1) = 42.7259
+    expected_luck = round(10.0 + 42.7259, 4)
     assert fake_user["pit_luck"] == expected_luck
     assert view.pit_luck == expected_luck
     assert "Pit Luck" in view.last_result_banner
-    assert "+47.94" in view.last_result_banner
+    assert "+42.73" in view.last_result_banner
 
 
 @pytest.mark.asyncio
@@ -317,3 +319,66 @@ def test_fusion_tax_multipliers_and_chaining_prevention():
     chosen_name, tier_one_in, _ = match
     # It must remain at 512 tier, NOT bridge to 530
     assert tier_one_in <= 512.0
+
+
+@pytest.mark.asyncio
+async def test_pit_single_highest_rarity_cannot_refund_itself(monkeypatch):
+    """Verifies that throwing 1 copy of a player's highest rarity yields 75% value,
+
+    preventing them from forging the same tier back.
+    """
+    from systems.core import database
+
+    exode_name = RARITY_DICT["exode"]  # 1 in 10,000
+    fake_user = {
+        "inventory": {exode_name: 1},
+        "discovered": {exode_name: True},
+        "upgrades": {"luck": {"pit_luck": 0}},
+        "pit_luck": 0.0,
+        "highscore": exode_name,
+    }
+
+    async def mock_ensure_user(user_id):
+        return fake_user
+
+    async def mock_save_user_data(user_id, data):
+        return True
+
+    @asynccontextmanager
+    async def mock_lock(user_id):
+        yield
+
+    @asynccontextmanager
+    async def mock_transaction():
+        yield
+
+    monkeypatch.setattr("systems.bot.commands.pit.ensure_user", mock_ensure_user)
+    monkeypatch.setattr("systems.bot.commands.pit.save_user_data", mock_save_user_data)
+    monkeypatch.setattr(database.db, "lock_user", mock_lock)
+    monkeypatch.setattr(database.db, "transaction", mock_transaction)
+
+    view = PitView("user1", fake_user["inventory"])
+    # Set mode to "all" so 1 copy is sacrificed
+    view.qty_mode_idx = 1
+    view.selected_ids.add("exode")
+
+    plan, total_val = view.compute_sacrifice_plan()
+    assert len(plan) == 1
+    assert plan[0][1] == 1
+    # 10,000 * 0.75 = 7,500
+    assert total_val == 10000.0 * PIT_SACRIFICE_EFFICIENCY
+
+    interaction = MagicMock()
+    interaction.user.id = "user1"
+    interaction.response.send_message = AsyncMock()
+    interaction.response.edit_message = AsyncMock()
+
+    await view.on_confirm_sacrifice(interaction)
+
+    # The 10,000 rarity is consumed and cannot refund itself
+    assert fake_user["inventory"].get(exode_name, 0) == 0
+    # The forged rarity must be strictly lower than 10,000 tier
+    forged_name = next(iter(fake_user["inventory"].keys()))
+    assert forged_name != exode_name
+    forged_val = RARITY_VALS[RARITY_NAME_TO_ID[forged_name]]
+    assert forged_val < 10000.0

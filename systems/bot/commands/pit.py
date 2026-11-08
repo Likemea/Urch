@@ -26,6 +26,8 @@ RARITY_NAME_TO_ONE_IN: dict[str, float] = {
 }
 RARITY_ID_TO_ONE_IN: dict[str, float] = {r[2]: (1.0 / r[1]) if r[1] > 0 else 0.0 for r in RARITIES}
 
+PIT_SACRIFICE_EFFICIENCY: float = 0.75
+
 QUANTITY_MODES = [
     ("keep_one", "🛡️ Mode: Keep 1"),
     ("all", "💥 Mode: All"),
@@ -147,7 +149,7 @@ class PitRaritySelect(discord.ui.Select):
             rid = RARITY_NAME_TO_ID.get(rarity_name, rarity_name)
             sac_qty = calculate_sacrifice_qty(count, pit_view.qty_mode)
             one_in = RARITY_NAME_TO_ONE_IN.get(rarity_name, 2.0)
-            val_Contribution = sac_qty * one_in
+            val_Contribution = sac_qty * one_in * PIT_SACRIFICE_EFFICIENCY
 
             label = _clean_label(f"{rarity_name} (x{count:,})", 100)
             if sac_qty > 0:
@@ -288,7 +290,7 @@ class PitView(discord.ui.View):
             if sac_qty <= 0:
                 continue
             one_in = RARITY_NAME_TO_ONE_IN.get(r_name, 2.0)
-            sub_val = sac_qty * one_in
+            sub_val = sac_qty * one_in * PIT_SACRIFICE_EFFICIENCY
             plan.append((r_name, sac_qty, sub_val))
             total_value += sub_val
 
@@ -522,7 +524,9 @@ class PitView(discord.ui.View):
                 if sac_qty <= 0:
                     continue
                 actual_deductions[r_name] = sac_qty
-                total_value += sac_qty * RARITY_NAME_TO_ONE_IN.get(r_name, 2.0)
+                total_value += (
+                    sac_qty * RARITY_NAME_TO_ONE_IN.get(r_name, 2.0) * PIT_SACRIFICE_EFFICIENCY
+                )
 
             if not actual_deductions or total_value < 2.0 - 1e-9:
                 self.inventory = dict(live_inv)

@@ -6,7 +6,6 @@ POTION_RECIPES = {
         "description": "+25% Luck for 2 minutes",
         "reqs": {
             "clovers": 10,
-            "lucky": 5,
         },
         "buff": {
             "type": "duration",
@@ -20,8 +19,6 @@ POTION_RECIPES = {
         "description": "+50% Luck for 3 minutes",
         "reqs": {
             "clovers": 35,
-            "lucky": 15,
-            "rare": 64,
         },
         "buff": {
             "type": "duration",
@@ -33,7 +30,7 @@ POTION_RECIPES = {
     "large_luck_potion": {
         "name": "🧪 Large Luck Potion",
         "description": "+100% Luck for 5 minutes",
-        "reqs": {"clovers": 100, "ruby": 70, "money": 55, "lucky": 40, "aureum": 16},
+        "reqs": {"clovers": 100},
         "buff": {
             "type": "duration",
             "duration_seconds": 300,
@@ -45,12 +42,7 @@ POTION_RECIPES = {
         "name": "⚡ Hypercharge Potion",
         "description": "+500% Luck & +1 Extra Roll for the next 25 manual rolls.",
         "reqs": {
-            "clovers": 250,
-            "ruby": 180,
-            "jackpot": 120,
-            "crystallize": 50,
-            "ultimate": 20,
-            "archidon": 8,
+            "clovers": 450,
         },
         "buff": {
             "type": "charges",
@@ -65,12 +57,7 @@ POTION_RECIPES = {
         "name": "🌀 Overclock Potion",
         "description": "+200% Luck and 2x Clovers to ALL rolls for 10 minutes.",
         "reqs": {
-            "clovers": 500,
-            "lucky": 400,
-            "aureum": 60,
-            "exode": 24,
-            "otherworldly": 8,
-            "easy": 2,
+            "clovers": 800,
         },
         "buff": {
             "type": "duration",
@@ -85,12 +72,7 @@ POTION_RECIPES = {
         "name": "😯 All or Nothing Potion",
         "description": "+1000% Luck for the next manual roll!",
         "reqs": {
-            "clovers": 900,
-            "jackpot": 450,
-            "lucky": 350,
-            "unique": 275,
-            "amazing": 100,
-            "crystalline_clover": 10,
+            "clovers": 1000,
         },
         "buff": {
             "type": "charges",
@@ -103,11 +85,7 @@ POTION_RECIPES = {
         "name": "🧬 Dupe Potion",
         "description": "25% chance to double any 1 in 1M+ rarity rolled for 5 minutes.",
         "reqs": {
-            "clovers": 400,
-            "crystalline_clover": 20,
-            "transcendant": 10,
-            "subatomic": 5,
-            "galactic": 3,
+            "clovers": 500,
         },
         "buff": {
             "type": "duration",
