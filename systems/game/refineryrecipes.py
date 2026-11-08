@@ -15,7 +15,7 @@ REFINERY_RECIPES = {
         "input": {"charge": 100000},
         "output": {"diesel": 1},
         "base_time": 1,
-    }
+    },
 }
 
 REFINERY_TABS = [
