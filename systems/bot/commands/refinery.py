@@ -26,6 +26,32 @@ class RefineryView(discord.ui.View):
         self.tab = 0  # each item recipe is grouped into a category
         self.page = 0
 
+        self.rebuild_components()
+
+    def rebuild_components(self):
+        # self.clear_items()
+
+        # row 0: category tabs
+        ref_fuel_btn = discord.ui.Button(
+            label="🛢️",
+            style=discord.ButtonStyle.primary,
+            disabled=False,
+            row=0,
+        )
+
+        autoroll_fuel_btn = discord.ui.Button(
+            label="🍀🛢️",
+            style=discord.ButtonStyle.primary,
+            disabled=False,
+            row=0,
+        )
+        
+        async def _check_owner(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("This isn't your menu.", ephemeral=True)
+            return False
+        return True
+
 
 class RefineryCommand(
     commands.GroupCog, group_name="refinery", group_description="Refine Items and Compounds"
