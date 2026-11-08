@@ -47,10 +47,10 @@ class RefineryView(discord.ui.View):
         )
         
         async def _check_owner(self, interaction: discord.Interaction) -> bool:
-        if str(interaction.user.id) != self.user_id:
-            await interaction.response.send_message("This isn't your menu.", ephemeral=True)
-            return False
-        return True
+            if str(interaction.user.id) != self.user_id:
+                await interaction.response.send_message("This isn't your menu.", ephemeral=True)
+                return False
+            return True
 
 
 class RefineryCommand(
