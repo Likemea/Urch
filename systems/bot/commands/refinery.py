@@ -46,11 +46,28 @@ class RefineryView(discord.ui.View):
             row=0,
         )
 
-        async def _check_owner(self, interaction: discord.Interaction) -> bool:
-            if str(interaction.user.id) != self.user_id:
+        compound_btn = discord.ui.Button(
+            label="C",
+            style=discord.ButtonStyle.primary,
+            disabled=False,
+            row=0,
+        )
+
+    def format_embed(self) -> discord.Embed:
+        pass
+
+    async def _check_owner(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
                 await interaction.response.send_message("This isn't your menu.", ephemeral=True)
-                return False
-            return True
+            return False
+        return True
+
+    async def ref_fuel_tab(self, interaction: discord.Interaction):
+        if not await self._check_owner(interaction):
+            return
+        self.tab = 0
+        self.rebuild_components()
+        await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
 
 class RefineryCommand(
