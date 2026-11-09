@@ -63,6 +63,7 @@ RARITIES = [
     ("Steel 🔩 (1 in 123,456)", 1 / 123456, "steel"),
     ("Easy 😃 (1 in 131,072)", 1 / 131072, "easy"),
     ("negus 🥶 (1 in 140,000)", 1 / 140000, "negus"),
+    ("Coal 🪨 (1 in 177,777)", 1 / 177777, "coal"),
     ("Redacted ⬛ (1 in 200,000)", 1 / 200000, "redacted"),
     ("Skilled 🤸‍♂️ (1 in 262,144)", 1 / 262144, "skilled"),
     ("Supreme 🪐 (1 in 350,000)", 1 / 350000, "supreme"),
