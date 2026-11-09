@@ -19,21 +19,27 @@ ITEM_DATA = {
         "name": "Clover Fuel Mk. II",
         "description": "3 watts per hour",
     },
+    "cast_iron": {
+        "name": "Cast Iron",
+        "description": "Steel, now with higher carbon content!",
+    },
 }
 
 REFINERY_RECIPES = {
     "defaultite_recipe": {
         "input": {"common": 1},
         "output": {"defaultite": 1},
-        "base_time": 0.53,
+        "base_time": 1,
         "tier": 1,
     },
+    # refinery fuel recipes
     "diesel_recipe": {
         "input": {"charge": 1},
         "output": {"diesel": 1},
         "base_time": 0,
         "tier": 0,
     },
+    # autoroll fuel recipes
     "cfuel_mk1_recipe": {
         "input": {
             "clovers": 10,
@@ -69,6 +75,26 @@ REFINERY_RECIPES = {
         "base_time": 120,
         "tier": 2,
     },
+    # compound recipes
+    "cast_iron_recipe": {
+        "input": {
+            "steel": 2,
+            "coal": 1,
+        },
+        "output": {"cast_iron": 2},
+        "base_time": 360,
+        "tier": 1,
+    },
+    "cast_iron_recipe_efficient": {
+        "input": {
+            "steel": 20,
+            "carbon": 2,
+            "oxygen": 1,
+        },
+        "output": {"cast_iron": 20},
+        "base_time": 120,
+        "tier": 23,
+    },
 }
 
 REFINERY_TABS = [
@@ -83,6 +109,14 @@ REFINERY_TABS = [
             "cfuel_mk2": {
                 "cfuel_mk2_recipe",
                 "cfuel_mk2_recipe_depleted",
+            },
+        },
+    },
+    {  # tab 2: compounds
+        "recipes": {
+            "cast_iron": {
+                "cast_iron_recipe",
+                "cast_iron_recipe_efficient",
             },
         },
     },
