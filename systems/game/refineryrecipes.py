@@ -1,4 +1,8 @@
 ITEM_DATA = {
+    "placeholder": {
+        "name": "Placeholder",
+        "description": "No",
+    },
     "diesel": {
         "name": "Diesel",
         "description": "Tier 1 Refinery Fuel",
@@ -26,6 +30,12 @@ ITEM_DATA = {
 }
 
 REFINERY_RECIPES = {
+    "placeholder_recipe": {
+        "input": {"infinity": 1000},
+        "output": {"placeholder": 1},
+        "base_time": 30000000,
+        "tier": 0,
+    },
     "defaultite_recipe": {
         "input": {"common": 1},
         "output": {"defaultite": 1},
@@ -118,6 +128,16 @@ REFINERY_TABS = [
                 "cast_iron_recipe",
                 "cast_iron_recipe_efficient",
             },
+        },
+    },
+    {  # tab 3: items
+        "recipes": {
+            "placeholder": {"placeholder_recipe"},
+        },
+    },
+    {  # tab 4: misc
+        "recipes": {
+            "placeholder": {"placeholder_recipe"},
         },
     },
 ]
