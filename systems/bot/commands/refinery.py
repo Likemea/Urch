@@ -5,7 +5,7 @@ from discord.ext import commands
 from systems.game.refineryrecipes import (
     ITEM_DATA,
     REFINERY_RECIPES,
-    REFINERY_TABS
+    REFINERY_TABS,
 )
 from systems.game.utils import (
     ensure_user,
@@ -35,7 +35,7 @@ class RefineryView(discord.ui.View):
         self.rebuild_components()
 
     def rebuild_components(self):
-        # self.clear_items()
+        self.clear_items()
 
         # row 0: category tabs
         ref_fuel_btn = discord.ui.Button(
@@ -67,8 +67,32 @@ class RefineryView(discord.ui.View):
 
     def format_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            
+            title="Refinery",
+            description="Refine compounds using rarities.",
+            color=discord.Color.red()
         )
+        for recipe_id in REFINERY_TABS[self.tab]["recipes"]["curr_item"]:
+            recipe_data = REFINERY_RECIPES[recipe_id]
+            recipe_inputs = []
+            for item_id, amount in recipe_data["input"]:
+                recipe_inputs.append(f"{amount}x {item_id}")
+            recipe_outputs = []
+            for item_id, amount in recipe_data["output"]:
+                recipe_outputs.append(f"{amount}x {item_id}")
+            recipe_time = str(recipe_data["base_time"])+"s". # temporary
+            recipe_full_text = [
+                "**Inputs:**",
+                "\n\n".join(recipe_inputs),
+                "**Outputs:**",
+                "\n\n".join(recipe_outputs),
+                recipe_time,
+                f"Tier {recipe_data['tier']}",
+            ]
+            embed.add_field(
+                name=f"**{recipe_data['name']}**",
+                value="\n\n".join(recipe_full_text),
+                inline=False,
+            )
 
     async def _check_owner(self, interaction: discord.Interaction) -> bool:
         if str(interaction.user.id) != self.user_id:
@@ -81,7 +105,7 @@ class RefineryView(discord.ui.View):
             return
         self.tab = 0
         self.page = 0
-        self.curr_item = list(REFINERY_TABS[self.tab]["recipes"].items())[0][0]
+        self.curr_item = "diesel"
         self.rebuild_components()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
@@ -90,6 +114,7 @@ class RefineryView(discord.ui.View):
             return
         self.tab = 1
         self.page = 0
+        self.curr_item = "cfuel_mk1"
         self.rebuild_components()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
@@ -98,6 +123,7 @@ class RefineryView(discord.ui.View):
             return
         self.tab = 2
         self.page = 0
+        self.curr_item = "cast_iron"
         self.rebuild_components()
         await interaction.response.edit_message(embed=self.format_embed(), view=self)
 
