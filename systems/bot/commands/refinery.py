@@ -69,7 +69,7 @@ class RefineryView(discord.ui.View):
         embed = discord.Embed(
             title="Refinery",
             description="Refine compounds using rarities.",
-            color=discord.Color.red()
+            color=discord.Color.red(),
         )
         for recipe_id in REFINERY_TABS[self.tab]["recipes"]["curr_item"]:
             recipe_data = REFINERY_RECIPES[recipe_id]
@@ -79,7 +79,7 @@ class RefineryView(discord.ui.View):
             recipe_outputs = []
             for item_id, amount in recipe_data["output"]:
                 recipe_outputs.append(f"{amount}x {item_id}")
-            recipe_time = str(recipe_data["base_time"])+"s" # temporary
+            recipe_time = str(recipe_data["base_time"])+"s"  # temporary
             recipe_full_text = [
                 "**Inputs:**",
                 "\n\n".join(recipe_inputs),
