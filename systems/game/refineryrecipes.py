@@ -31,12 +31,14 @@ ITEM_DATA = {
 
 REFINERY_RECIPES = {
     "placeholder_recipe": {
+        "name": "g",
         "input": {"infinity": 1000},
         "output": {"placeholder": 1},
         "base_time": 30000000,
         "tier": 0,
     },
     "defaultite_recipe": {
+        "name": "Defaultite Refining",
         "input": {"common": 1},
         "output": {"defaultite": 1},
         "base_time": 1,
@@ -44,6 +46,7 @@ REFINERY_RECIPES = {
     },
     # refinery fuel recipes
     "diesel_recipe": {
+        "name": "Diesel Separation",
         "input": {"charge": 1},
         "output": {"diesel": 1},
         "base_time": 0,
@@ -51,6 +54,7 @@ REFINERY_RECIPES = {
     },
     # autoroll fuel recipes
     "cfuel_mk1_recipe": {
+        "name": "Clover Fuel Refining I",
         "input": {
             "clovers": 10,
             "steel": 1,
@@ -60,6 +64,7 @@ REFINERY_RECIPES = {
         "tier": 1,
     },
     "cfuel_mk2_recipe": {
+        "name": "Clover Fuel Refining II",
         "input": {
             "clovers": 75,
             "darkness": 10,
@@ -74,6 +79,7 @@ REFINERY_RECIPES = {
         "tier": 2,
     },
     "cfuel_mk2_recipe_depleted": {
+        "name": "Depleted Fuel Recycling II",
         "input": {
             "clovers": 40,
             "cfuel_mk1_depleted": 25,
@@ -87,6 +93,7 @@ REFINERY_RECIPES = {
     },
     # compound recipes
     "cast_iron_recipe": {
+        "name": "Cast Iron Smelting",
         "input": {
             "steel": 2,
             "coal": 1,
@@ -96,6 +103,7 @@ REFINERY_RECIPES = {
         "tier": 1,
     },
     "cast_iron_recipe_efficient": {
+        "name": "Cast Iron Smelting 2",
         "input": {
             "steel": 20,
             "carbon": 2,
