@@ -100,7 +100,7 @@ class RefineryView(discord.ui.View):
     async def ref_fuel_tab(self, interaction: discord.Interaction):
         if not await self._check_owner(interaction):
             return
-        self.tab = 0
+        self.tab = 1
         self.page = 0
         self.curr_item = "diesel"
         self.rebuild_components()
@@ -109,7 +109,7 @@ class RefineryView(discord.ui.View):
     async def autoroll_fuel_tab(self, interaction: discord.Interaction):
         if not await self._check_owner(interaction):
             return
-        self.tab = 1
+        self.tab = 2
         self.page = 0
         self.curr_item = "cfuel_mk1"
         self.rebuild_components()
@@ -118,7 +118,7 @@ class RefineryView(discord.ui.View):
     async def compound_tab(self, interaction: discord.Interaction):
         if not await self._check_owner(interaction):
             return
-        self.tab = 2
+        self.tab = 3
         self.page = 0
         self.curr_item = "cast_iron"
         self.rebuild_components()
