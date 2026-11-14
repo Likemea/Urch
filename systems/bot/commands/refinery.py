@@ -8,11 +8,8 @@ from systems.game.refineryrecipes import (
     REFINERY_TABS,
 )
 from systems.game.utils import (
-    ensure_user,
-    has_requirements,
-    consume_requirements,
-    currency_count,
-    RARITY_ID_TO_NAME,
+    get_user_data,
+    save_user_data,
 )
 
 
@@ -138,6 +135,16 @@ class RefineryCommand(
     @app_commands.command(name="view", description="View recipes")
     async def view(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
+        user = await get_user_data(user_id)
+        inventory = (user or {}).get("inventory") or {}
+
+        view = RefineryView(
+            user_id,
+            inventory,
+            bot=self.bot,
+        )
+        embed = view.format_embed()
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 async def setup(bot):
