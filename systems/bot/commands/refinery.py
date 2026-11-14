@@ -27,7 +27,7 @@ class RefineryView(discord.ui.View):
 
         self.tab = 0  # each item recipe is grouped into a category
         self.page = 0
-        self.curr_item = "defaultium"
+        self.curr_item = "defaultite"
 
         self.rebuild_components()
 
