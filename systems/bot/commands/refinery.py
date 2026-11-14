@@ -68,7 +68,7 @@ class RefineryView(discord.ui.View):
             description="Refine compounds using rarities.",
             color=discord.Color.red(),
         )
-        for recipe_id in REFINERY_TABS[self.tab]["recipes"]["curr_item"]:
+        for recipe_id in REFINERY_TABS[self.tab]["recipes"][self.curr_item]:
             recipe_data = REFINERY_RECIPES[recipe_id]
             recipe_inputs = []
             for item_id, amount in recipe_data["input"]:
