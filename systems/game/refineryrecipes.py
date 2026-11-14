@@ -116,12 +116,17 @@ REFINERY_RECIPES = {
 }
 
 REFINERY_TABS = [
-    {  # tab 0: refinery fuel
+    {
+        "recipes": {
+            "defaultite": ["defaultite_recipe"],
+        },
+    },
+    {  # tab 1: refinery fuel
         "recipes": {
             "diesel": ["diesel_recipe"],
         }
     },
-    {  # tab 1: autoroll fuel
+    {  # tab 2: autoroll fuel
         "recipes": {
             "cfuel_mk1": ["cfuel_mk1_recipe"],
             "cfuel_mk2": [
@@ -130,7 +135,7 @@ REFINERY_TABS = [
             ],
         },
     },
-    {  # tab 2: compounds
+    {  # tab 3: compounds
         "recipes": {
             "cast_iron": [
                 "cast_iron_recipe",
@@ -138,12 +143,12 @@ REFINERY_TABS = [
             ],
         },
     },
-    {  # tab 3: items
+    {  # tab 4: items
         "recipes": {
             "placeholder": ["placeholder_recipe"],
         },
     },
-    {  # tab 4: misc
+    {  # tab 5: misc
         "recipes": {
             "placeholder": ["placeholder_recipe"],
         },
