@@ -71,10 +71,10 @@ class RefineryView(discord.ui.View):
         for recipe_id in REFINERY_TABS[self.tab]["recipes"][self.curr_item]:
             recipe_data = REFINERY_RECIPES[recipe_id]
             recipe_inputs = []
-            for item_id, amount in recipe_data["input"]:
+            for item_id, amount in recipe_data["input"].items():
                 recipe_inputs.append(f"{amount}x {item_id}")
             recipe_outputs = []
-            for item_id, amount in recipe_data["output"]:
+            for item_id, amount in recipe_data["output"].items():
                 recipe_outputs.append(f"{amount}x {item_id}")
             recipe_time = f"{str(recipe_data['base_time'])}s"  # temporary
             recipe_full_text = [
