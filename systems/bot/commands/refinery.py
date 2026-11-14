@@ -90,6 +90,7 @@ class RefineryView(discord.ui.View):
                 value="\n\n".join(recipe_full_text),
                 inline=False,
             )
+        return embed
 
     async def _check_owner(self, interaction: discord.Interaction) -> bool:
         if str(interaction.user.id) != self.user_id:
